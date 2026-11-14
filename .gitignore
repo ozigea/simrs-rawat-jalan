@@ -1,0 +1,16 @@
+# secrets / local config
+.env
+*.pem
+
+# dependencies & build output
+node_modules/
+vendor/
+dist/
+coverage/
+runtime/
+
+# editors / OS
+.idea/
+.vscode/
+.DS_Store
+*.log

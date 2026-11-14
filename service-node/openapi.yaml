@@ -1,0 +1,47 @@
+openapi: 3.0.3
+info:
+  title: SIMRS Rawat Jalan - Node Service API
+  version: 0.1.0
+  description: Dashboard API dan integrasi pemeriksaan penunjang. Dilengkapi bertahap per fase.
+servers:
+  - url: /api/v1
+paths:
+  /health:
+    get:
+      summary: Status service dan koneksi database
+      responses:
+        '200':
+          description: Service dan database hidup
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '503':
+          description: Database tidak tersedia
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+components:
+  schemas:
+    Envelope:
+      type: object
+      required: [success, data, meta, error, request_id]
+      properties:
+        success: { type: boolean }
+        data: { nullable: true }
+        meta: { type: object, nullable: true }
+        error:
+          type: object
+          nullable: true
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field: { type: string }
+                  message: { type: string }
+        request_id: { type: string }

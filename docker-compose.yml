@@ -1,0 +1,125 @@
+name: simrs
+
+# `docker compose up --build` starts the whole stack. All ${VAR:-default} values are demo defaults;
+# override them in .env (see .env.example).
+
+x-db-env: &db-env
+  DB_HOST: db
+  DB_PORT: "5432"
+  DB_NAME: ${APP_DB_NAME:-simrs}
+
+services:
+  keygen:
+    image: alpine/openssl:latest
+    entrypoint: ["/bin/sh", "/scripts/gen-keys.sh"]
+    volumes:
+      - ./scripts:/scripts:ro
+      - jwt_private:/keys/private
+      - jwt_public:/keys/public
+    restart: "no"
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_dev}
+      APP_DB_NAME: ${APP_DB_NAME:-simrs}
+      SIMRS_CORE_PASSWORD: ${SIMRS_CORE_PASSWORD:-simrs_core_dev}
+      SIMRS_SERVICE_PASSWORD: ${SIMRS_SERVICE_PASSWORD:-simrs_service_dev}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "${DB_PORT_HOST:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -h 127.0.0.1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  yii:
+    build: ./backend-yii
+    environment:
+      <<: *db-env
+      DB_USER: simrs_core
+      DB_PASSWORD: ${SIMRS_CORE_PASSWORD:-simrs_core_dev}
+      APP_ENV: ${APP_ENV:-prod}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Jakarta}
+      JWT_PRIVATE_KEY_PATH: /keys/private/jwt_private.pem
+      JWT_PUBLIC_KEY_PATH: /keys/public/jwt_public.pem
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-change-me-service-token}
+    volumes:
+      - ./backend-yii:/var/www/html
+      - jwt_private:/keys/private:ro
+      - jwt_public:/keys/public:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      keygen:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  yii-web:
+    image: nginx:1.27-alpine
+    ports:
+      - "${WEB_PORT_YII:-8080}:80"
+    volumes:
+      - ./docker/nginx/yii.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./backend-yii/web:/var/www/html/web:ro
+    depends_on:
+      yii:
+        condition: service_healthy
+
+  node:
+    build: ./service-node
+    command: ["node", "--watch", "src/server.js"]
+    environment:
+      <<: *db-env
+      NODE_ENV: ${APP_ENV:-prod}
+      PORT: "3000"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DB_USER: simrs_service
+      DB_PASSWORD: ${SIMRS_SERVICE_PASSWORD:-simrs_service_dev}
+      JWT_PUBLIC_KEY_PATH: /keys/public/jwt_public.pem
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-change-me-service-token}
+      YII_INTERNAL_URL: http://yii-web
+    volumes:
+      - ./service-node/src:/app/src
+      - ./service-node/openapi.yaml:/app/openapi.yaml:ro
+      - jwt_public:/keys/public:ro
+    ports:
+      - "${WEB_PORT_NODE:-3001}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      keygen:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/v1/health >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  frontend:
+    build: ./frontend-react
+    environment:
+      PROXY_YII_URL: http://yii-web
+      PROXY_NODE_URL: http://node:3000
+    volumes:
+      - ./frontend-react/src:/app/src
+      - ./frontend-react/index.html:/app/index.html:ro
+    ports:
+      - "${WEB_PORT_REACT:-5173}:5173"
+    depends_on:
+      - yii-web
+      - node
+
+volumes:
+  db_data:
+  jwt_private:
+  jwt_public:
