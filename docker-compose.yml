@@ -26,6 +26,7 @@ services:
       APP_DB_NAME: ${APP_DB_NAME:-simrs}
       SIMRS_CORE_PASSWORD: ${SIMRS_CORE_PASSWORD:-simrs_core_dev}
       SIMRS_SERVICE_PASSWORD: ${SIMRS_SERVICE_PASSWORD:-simrs_service_dev}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Jakarta}
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./database/init:/docker-entrypoint-initdb.d:ro
@@ -49,8 +50,12 @@ services:
       JWT_PRIVATE_KEY_PATH: /keys/private/jwt_private.pem
       JWT_PUBLIC_KEY_PATH: /keys/public/jwt_public.pem
       SERVICE_TOKEN: ${SERVICE_TOKEN:-change-me-service-token}
+      SEED_DIR: /srv/database/seed
+      SEED_ON_START: ${SEED_ON_START:-true}
+      SEED_USER_PASSWORD: ${SEED_USER_PASSWORD:-Simrs#2026}
     volumes:
       - ./backend-yii:/var/www/html
+      - ./database:/srv/database:ro
       - jwt_private:/keys/private:ro
       - jwt_public:/keys/public:ro
     depends_on:
@@ -62,7 +67,7 @@ services:
       test: ["CMD-SHELL", "test -f /tmp/ready"]
       interval: 5s
       timeout: 3s
-      retries: 20
+      retries: 30
 
   yii-web:
     image: nginx:1.27-alpine
