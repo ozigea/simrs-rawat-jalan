@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Button, Tag } from 'antd';
-import { ProfileOutlined } from '@ant-design/icons';
+import { HistoryOutlined, ProfileOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 import dayjs from 'dayjs';
 import type { ColumnConfig, MasterConfig, Option, RemoteOptions, Row } from '../../components/MasterCrudPage/types';
 import { DAY_NAMES, ROLE_LABELS, formatMoney } from '../../lib/format';
@@ -33,6 +35,17 @@ const staffTypeOptions: Option[] = [
   { value: 'LAB_ANALYST', label: 'Analis Lab' },
 ];
 const staffTypeLabel = (v: unknown) => staffTypeOptions.find((o) => o.value === v)?.label ?? String(v);
+
+function PatientHistoryButton({ row }: { row: Row }) {
+  const { can } = useAuth();
+  const navigate = useNavigate();
+  if (!can('patient.history')) return null;
+  return (
+    <Button size="small" icon={<HistoryOutlined />} onClick={() => navigate(`/patients/${row.id}/history`)}>
+      Riwayat
+    </Button>
+  );
+}
 
 function MedicineStockButton({ row }: { row: Row }) {
   const [open, setOpen] = useState(false);
@@ -75,6 +88,7 @@ export const masterConfigs: MasterConfig[] = [
       { name: 'gender', label: 'Jenis kelamin', options: [{ value: 'M', label: 'Laki-laki' }, { value: 'F', label: 'Perempuan' }] },
       { name: 'is_active', label: 'Status', options: activeOptions },
     ],
+    rowActions: (row) => <PatientHistoryButton row={row} />,
   },
   {
     permission: 'staff',

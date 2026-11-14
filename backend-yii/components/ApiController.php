@@ -58,6 +58,33 @@ abstract class ApiController extends Controller
         }
     }
 
+    /** Doctor id to scope visit lists to: null = may see all visits, -1 = nothing (account without staff link). */
+    protected function visitScope(): ?int
+    {
+        if (Yii::$app->user->can('visit.view')) {
+            return null;
+        }
+        $staffId = Yii::$app->user->identity->staff_id ?? null;
+        return $staffId ? (int) $staffId : -1;
+    }
+
+    /** RBAC check that also evaluates the "own visit" rule for doctors. */
+    protected function authorizeVisit(string $permission, array $visit): void
+    {
+        if (!Yii::$app->user->can($permission, ['visit' => $visit])) {
+            throw new ApiException(403, 'FORBIDDEN', 'Anda tidak berhak mengakses kunjungan ini');
+        }
+    }
+
+    protected function requiredReason(): string
+    {
+        $reason = trim((string) ($this->body()['reason'] ?? Yii::$app->request->get('reason', '')));
+        if (mb_strlen($reason) < 3 || mb_strlen($reason) > 255) {
+            throw new ApiException(422, 'VALIDATION_FAILED', 'Data tidak valid', [['field' => 'reason', 'message' => 'Alasan wajib diisi (3-255 karakter)']]);
+        }
+        return $reason;
+    }
+
     protected function validationFailed(Model $model): ApiException
     {
         $details = [];

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Button, Layout, Menu, Space, Tag, Typography } from 'antd';
-import { DashboardOutlined, DatabaseOutlined, LogoutOutlined } from '@ant-design/icons';
+import { DashboardOutlined, DatabaseOutlined, LogoutOutlined, MedicineBoxOutlined } from '@ant-design/icons';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { masterConfigs } from '../features/master/configs';
@@ -16,8 +16,14 @@ export default function AppLayout() {
     const master = masterConfigs
       .filter((c) => can(`master.${c.permission}.read`))
       .map((c) => ({ key: `/master/${c.path}`, label: c.title }));
+    const service = [
+      { perm: 'visit.create', key: '/registration', label: 'Pendaftaran' },
+      { perm: 'queue.read', key: '/queue', label: 'Antrean' },
+      { perm: 'visit.list', key: '/visits', label: 'Daftar Kunjungan' },
+    ].filter((i) => can(i.perm)).map(({ key, label }) => ({ key, label }));
     return [
       { key: '/', icon: <DashboardOutlined />, label: 'Beranda' },
+      ...(service.length ? [{ key: 'service', icon: <MedicineBoxOutlined />, label: 'Pelayanan', children: service }] : []),
       ...(master.length ? [{ key: 'master', icon: <DatabaseOutlined />, label: 'Master Data', children: master }] : []),
     ];
   }, [can]);
@@ -30,8 +36,8 @@ export default function AppLayout() {
           theme="dark"
           mode="inline"
           items={items}
-          selectedKeys={[location.pathname]}
-          defaultOpenKeys={['master']}
+          selectedKeys={[location.pathname.startsWith('/visits/') ? '/visits' : location.pathname]}
+          defaultOpenKeys={['service', 'master']}
           onClick={(e) => navigate(e.key)}
         />
       </Layout.Sider>
