@@ -197,7 +197,7 @@ class VisitService
         )->queryAll();
 
         $ids = array_column($visits, 'id');
-        $diag = $proc = [];
+        $diag = $proc = $meds = $labs = [];
         if ($ids) {
             foreach ((new Query())->select(['vd.visit_id', 'vd.icd10_code', 'i.description', 'vd.type'])->from(['vd' => 'visit_diagnosis'])
                 ->innerJoin(['i' => 'icd10'], 'i.code = vd.icd10_code')
@@ -210,9 +210,25 @@ class VisitService
                 $proc[$r['visit_id']][] = $r;
             }
         }
+        if ($ids) {
+            foreach ((new Query())->select(['rx.visit_id', 'm.name', 'm.unit', 'i.dose', 'i.frequency', 'i.qty'])->from(['i' => 'prescription_item'])
+                ->innerJoin(['rx' => 'prescription'], "rx.id = i.prescription_id AND rx.status = 'DISPENSED'")
+                ->innerJoin(['m' => 'medicine'], 'm.id = i.medicine_id')
+                ->where(['rx.visit_id' => $ids])->orderBy(['i.id' => SORT_ASC])->all() as $r) {
+                $meds[$r['visit_id']][] = $r;
+            }
+            foreach ((new Query())->select(['lo.visit_id', 'lo.order_no', 'lo.status', 't.name AS test_name', 't.unit', 'i.result_value', 'i.result_flag', 't.normal_range'])
+                ->from(['i' => 'lab_order_item'])->innerJoin(['lo' => 'lab_order'], 'lo.id = i.lab_order_id')
+                ->innerJoin(['t' => 'lab_test'], 't.id = i.lab_test_id')
+                ->where(['lo.visit_id' => $ids])->andWhere(['<>', 'lo.status', 'CANCELLED'])->orderBy(['i.id' => SORT_ASC])->all() as $r) {
+                $labs[$r['visit_id']][] = $r;
+            }
+        }
         foreach ($visits as &$v) {
             $v['diagnoses'] = $diag[$v['id']] ?? [];
             $v['procedures'] = $proc[$v['id']] ?? [];
+            $v['medicines'] = $meds[$v['id']] ?? [];
+            $v['lab_results'] = $labs[$v['id']] ?? [];
         }
         return [$visits, $total];
     }

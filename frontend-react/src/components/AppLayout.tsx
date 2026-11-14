@@ -20,6 +20,8 @@ export default function AppLayout() {
       { perm: 'visit.create', key: '/registration', label: 'Pendaftaran' },
       { perm: 'queue.read', key: '/queue', label: 'Antrean' },
       { perm: 'visit.list', key: '/visits', label: 'Daftar Kunjungan' },
+      { perm: 'pharmacy.worklist', key: '/pharmacy', label: 'Farmasi' },
+      { perm: 'lab.worklist', key: '/lab', label: 'Laboratorium' },
     ].filter((i) => can(i.perm)).map(({ key, label }) => ({ key, label }));
     return [
       { key: '/', icon: <DashboardOutlined />, label: 'Beranda' },

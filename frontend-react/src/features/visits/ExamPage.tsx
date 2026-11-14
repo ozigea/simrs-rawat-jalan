@@ -12,7 +12,9 @@ import ReasonModal from '../../components/ReasonModal';
 import VisitStatusTag from '../../components/VisitStatusTag';
 import { notifyError } from '../../lib/errors';
 import { formatMoney } from '../../lib/format';
+import LabTab from './LabTab';
 import PatientHistory from './PatientHistory';
+import PrescriptionTab from './PrescriptionTab';
 
 type Reload = () => Promise<unknown>;
 
@@ -286,6 +288,8 @@ export default function ExamPage() {
   const { data: visit, isLoading, error, refetch } = useQuery({
     queryKey: ['visit', visitId],
     queryFn: async () => (await yiiApi.get<ApiEnvelope<Row>>(`/visits/${visitId}`)).data.data!,
+    // Lab results can arrive at any time (external system): refresh while some are pending.
+    refetchInterval: (q) => ((q.state.data?.clinical?.lab_orders as Row[] | undefined)?.some((o) => o.status !== 'RESULTED' && o.status !== 'CANCELLED') ? 10_000 : false),
   });
   const reload: Reload = async () => {
     await refetch();
@@ -346,6 +350,8 @@ export default function ExamPage() {
               { key: 'exam', label: 'Pemeriksaan', children: <ExaminationTab visit={visit} canWrite={canWrite} reload={reload} /> },
               { key: 'dx', label: `Diagnosis (${visit.clinical.diagnoses.filter((d: Row) => d.status === 'ACTIVE').length})`, children: <DiagnosisTab visit={visit} canWrite={canWrite} reload={reload} /> },
               { key: 'proc', label: `Tindakan (${visit.clinical.procedures.filter((d: Row) => d.status === 'ACTIVE').length})`, children: <ProcedureTab visit={visit} canWrite={canWrite} reload={reload} /> },
+              { key: 'rx', label: `Resep (${visit.clinical.prescriptions.length})`, children: <PrescriptionTab visit={visit} canWrite={canWrite} reload={reload} /> },
+              { key: 'lab', label: `Lab (${visit.clinical.lab_orders.length})`, children: <LabTab visit={visit} canWrite={canWrite} reload={reload} /> },
               { key: 'hist', label: 'Riwayat pasien', children: <PatientHistory patientId={visit.patient_id} /> },
             ]}
           />

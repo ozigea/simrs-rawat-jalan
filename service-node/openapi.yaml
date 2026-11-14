@@ -1,29 +1,192 @@
 openapi: 3.0.3
 info:
   title: SIMRS Rawat Jalan - Node Service API
-  version: 0.1.0
-  description: Dashboard API dan integrasi pemeriksaan penunjang. Dilengkapi bertahap per fase.
+  version: 0.2.0
+  description: |
+    Integration API (external laboratory system) and, later, the dashboard API.
+    All responses use one envelope: `{success, data, meta, error, request_id}`.
+
+    Authentication:
+    * **Bearer JWT (RS256)** - issued by the Yii core at login; this service only verifies it. Admin endpoints.
+    * **X-API-Key** - for the external laboratory system (`/integration/lab-*`).
+
+    Reliability (scenario D-5): orders reach the lab through a transactional outbox with retry/backoff;
+    results are stored in an inbox first (idempotent by `external_id`) and then forwarded to the core.
 servers:
   - url: /api/v1
+tags:
+  - { name: Health }
+  - { name: External lab (API key) }
+  - { name: Integration monitor (admin) }
+  - { name: Mock LIS }
 paths:
   /health:
     get:
-      summary: Status service dan koneksi database
+      tags: [Health]
+      summary: Service status and database connection
       responses:
-        '200':
-          description: Service dan database hidup
+        '200': { $ref: '#/components/responses/Ok' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /integration/lab-orders:
+    get:
+      tags: [External lab (API key)]
+      summary: Orders still waiting for a result
+      description: Derived from the outbox events (`LAB_ORDER_CREATED`) that have no result in the inbox yet.
+      security: [{ ApiKey: [] }]
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [ORDERED], default: ORDERED } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Validation' }
+  /integration/lab-results:
+    post:
+      tags: [External lab (API key)]
+      summary: Deliver lab results (idempotent by external_id)
+      description: |
+        The message is stored in the inbox first and answered with **202**; it is forwarded to the core
+        asynchronously. Re-sending the same `external_id` is harmless (`duplicate: true`).
+      security: [{ ApiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LabResult' }
+            example:
+              external_id: RES-LAB20261114-000001
+              order_no: LAB20261114-000001
+              results:
+                - { test_code: LAB-001, value: '13.5', flag: NORMAL }
+      responses:
+        '202':
+          description: Accepted (stored in the inbox, or already known)
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Envelope'
-        '503':
-          description: Database tidak tersedia
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Envelope'
+              schema: { $ref: '#/components/schemas/Envelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Validation' }
+  /integration/outbox:
+    get:
+      tags: [Integration monitor (admin)]
+      summary: Outbox events (orders to the external lab)
+      security: [{ Bearer: [] }]
+      parameters: &monitorParams
+        - { name: status, in: query, schema: { type: string, enum: [PENDING, SENT, FAILED, RECEIVED, FORWARDED] } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: per_page, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
+  /integration/outbox/{id}/retry:
+    post:
+      tags: [Integration monitor (admin)]
+      summary: Retry a FAILED outbox event
+      security: [{ Bearer: [] }]
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: Only FAILED rows can be retried, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+  /integration/inbox:
+    get:
+      tags: [Integration monitor (admin)]
+      summary: Inbox messages (results from the external lab)
+      security: [{ Bearer: [] }]
+      parameters: *monitorParams
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /integration/inbox/{id}/retry:
+    post:
+      tags: [Integration monitor (admin)]
+      summary: Retry a FAILED inbox message
+      security: [{ Bearer: [] }]
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: Only FAILED rows can be retried, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+  /mock-lis/orders:
+    post:
+      tags: [Mock LIS]
+      summary: Simulated external lab - receive an order
+      description: Returns 503 while the mock is switched off (outage simulation). When on, it calls back with results after a short delay.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order_no, tests]
+              properties:
+                order_no: { type: string }
+                tests:
+                  type: array
+                  items:
+                    type: object
+                    required: [code]
+                    properties: { code: { type: string }, name: { type: string }, unit: { type: string, nullable: true }, normal_range: { type: string, nullable: true } }
+      responses:
+        '202': { description: Accepted, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+        '503': { $ref: '#/components/responses/Unavailable' }
+        '422': { $ref: '#/components/responses/Validation' }
+  /mock-lis/state:
+    get:
+      tags: [Mock LIS]
+      summary: Is the simulated lab switched on?
+      security: [{ Bearer: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    put:
+      tags: [Mock LIS]
+      summary: Switch the simulated lab on/off (outage test, D-5)
+      security: [{ Bearer: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [enabled], properties: { enabled: { type: boolean } } } } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
 components:
+  securitySchemes:
+    Bearer: { type: http, scheme: bearer, bearerFormat: JWT }
+    ApiKey: { type: apiKey, in: header, name: X-API-Key }
+  parameters:
+    Id: { name: id, in: path, required: true, schema: { type: integer } }
+  responses:
+    Ok: { description: Success, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+    Unauthorized: { description: Missing, invalid or expired credentials, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+    Forbidden: { description: Role not allowed, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+    Validation: { description: Invalid input, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+    Unavailable: { description: Dependency unavailable, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
   schemas:
+    LabResult:
+      type: object
+      required: [external_id, order_no, results]
+      properties:
+        external_id: { type: string, maxLength: 100, description: Unique id of this message in the external system (idempotency key) }
+        order_no: { type: string }
+        results:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [test_code, value]
+            properties:
+              test_code: { type: string }
+              value: { oneOf: [{ type: string }, { type: number }] }
+              flag: { type: string, enum: [NORMAL, LOW, HIGH, CRITICAL] }
+              note: { type: string }
     Envelope:
       type: object
       required: [success, data, meta, error, request_id]

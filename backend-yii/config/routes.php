@@ -14,7 +14,7 @@ return [
     'POST api/v1/auth/login' => 'api/v1/auth/login',
     'GET api/v1/auth/me' => 'api/v1/auth/me',
 
-    $rest(['api/v1/patients' => 'api/v1/patient'], ['GET {id}/history' => 'history']),
+    $rest(['api/v1/patients' => 'api/v1/patient'], ['GET {id}/history' => 'history', 'GET {id}/medications' => 'medications']),
     // Visits, queue and the medical record of a visit
     'GET api/v1/visits' => 'api/v1/visit/index',
     'POST api/v1/visits' => 'api/v1/visit/create',
@@ -28,6 +28,18 @@ return [
     'DELETE api/v1/visits/<id:\d+>/diagnoses/<diagnosisId:\d+>' => 'api/v1/examination/void-diagnosis',
     'POST api/v1/visits/<id:\d+>/procedures' => 'api/v1/examination/add-procedures',
     'POST api/v1/visit-procedures/<id:\d+>/void' => 'api/v1/examination/void-procedure',
+
+    // Pharmacy, laboratory and the internal (Node -> Yii) endpoint
+    'POST api/v1/visits/<id:\d+>/prescriptions' => 'api/v1/prescription/create',
+    'GET api/v1/prescriptions' => 'api/v1/prescription/index',
+    'GET api/v1/prescriptions/<id:\d+>' => 'api/v1/prescription/view',
+    'POST api/v1/prescriptions/<id:\d+>/dispense' => 'api/v1/prescription/dispense',
+    'POST api/v1/prescriptions/<id:\d+>/cancel' => 'api/v1/prescription/cancel',
+    'POST api/v1/visits/<id:\d+>/lab-orders' => 'api/v1/lab-order/create',
+    'GET api/v1/lab-orders' => 'api/v1/lab-order/index',
+    'GET api/v1/lab-orders/<id:\d+>' => 'api/v1/lab-order/view',
+    'PUT api/v1/lab-orders/<id:\d+>/results' => 'api/v1/lab-order/results',
+    'POST api/v1/internal/lab-results' => 'api/v1/internal/lab-results',
 
     $rest(['api/v1/staff' => 'api/v1/staff']),
     $rest(['api/v1/polyclinics' => 'api/v1/polyclinic']),

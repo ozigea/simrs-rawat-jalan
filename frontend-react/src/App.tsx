@@ -6,7 +6,9 @@ import AppLayout from './components/AppLayout';
 import MasterCrudPage from './components/MasterCrudPage';
 import { masterConfigs } from './features/master/configs';
 import ExamPage from './features/visits/ExamPage';
+import LabWorklistPage from './features/visits/LabWorklistPage';
 import PatientHistoryPage from './features/visits/PatientHistoryPage';
+import PharmacyPage from './features/visits/PharmacyPage';
 import QueuePage from './features/visits/QueuePage';
 import RegistrationPage from './features/visits/RegistrationPage';
 import VisitListPage from './features/visits/VisitListPage';
@@ -44,6 +46,8 @@ export default function App() {
         <Route index element={<StatusPage />} />
         <Route path="registration" element={<Guard perm="visit.create"><RegistrationPage /></Guard>} />
         <Route path="queue" element={<Guard perm="queue.read"><QueuePage /></Guard>} />
+        <Route path="pharmacy" element={<Guard perm="pharmacy.worklist"><PharmacyPage /></Guard>} />
+        <Route path="lab" element={<Guard perm="lab.worklist"><LabWorklistPage /></Guard>} />
         <Route path="visits" element={<Guard perm="visit.list"><VisitListPage /></Guard>} />
         <Route path="visits/:id/exam" element={<Guard perm="visit.list"><ExamPage /></Guard>} />
         <Route path="patients/:id/history" element={<Guard perm="patient.history"><PatientHistoryPage /></Guard>} />

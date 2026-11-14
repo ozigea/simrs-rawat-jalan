@@ -94,6 +94,11 @@ services:
       JWT_PUBLIC_KEY_PATH: /keys/public/jwt_public.pem
       SERVICE_TOKEN: ${SERVICE_TOKEN:-change-me-service-token}
       YII_INTERNAL_URL: http://yii-web
+      LIS_API_KEY: ${LIS_API_KEY:-change-me-lis-key}
+      MOCK_LIS_ENABLED: ${MOCK_LIS_ENABLED:-true}
+      MOCK_LIS_DELAY_MS: ${MOCK_LIS_DELAY_MS:-2000}
+      WORKER_ENABLED: ${WORKER_ENABLED:-true}
+      OUTBOX_BACKOFF_BASE_SECONDS: ${OUTBOX_BACKOFF_BASE_SECONDS:-2}
     volumes:
       - ./service-node/src:/app/src
       - ./service-node/openapi.yaml:/app/openapi.yaml:ro

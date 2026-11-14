@@ -49,4 +49,15 @@ class PatientController extends BaseMasterController
         [$rows, $total] = (new VisitService())->patientHistory((int) $patient->id, $page, $perPage);
         return $this->ok($rows, ['page' => $page, 'per_page' => $perPage, 'total' => $total]);
     }
+
+    /** R-19: medicines dispensed to the patient, newest first. */
+    public function actionMedications($id): array
+    {
+        $this->authorize('patient.medications');
+        $patient = $this->find($id);
+        $page = max(1, (int) Yii::$app->request->get('page', 1));
+        $perPage = min(100, max(1, (int) Yii::$app->request->get('per_page', 20)));
+        [$rows, $total] = (new \app\services\PharmacyService())->medications((int) $patient->id, $page, $perPage);
+        return $this->ok($rows, ['page' => $page, 'per_page' => $perPage, 'total' => $total]);
+    }
 }

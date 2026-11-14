@@ -49,4 +49,48 @@ async function makePatients(adminToken, count, tag) {
   return results.map((r) => r.body.data.id);
 }
 
-module.exports = { call, login, today, makePatients, check, done };
+// Registers `count` new patients on dokter1's schedule today and calls them: returns visit ids (status IN_EXAM).
+async function makeVisitsInExam(count, tag, tokens) {
+  const { admin, reg, doctor } = tokens;
+  const me = await call('GET', '/auth/me', { token: doctor });
+  const avail = await call('GET', `/schedules/available?date=${today()}`, { token: reg });
+  const sched = avail.body.data.find((s) => s.doctor_id === me.body.data.staff_id && s.remaining >= count);
+  if (!sched) throw new Error('dokter1 has no schedule with enough quota today');
+  const patients = await makePatients(admin, count, tag);
+  const regs = await Promise.all(patients.map((pid) => call('POST', '/visits', {
+    token: reg, body: { patient_id: pid, schedule_id: sched.id, visit_date: today() }, headers: { 'Idempotency-Key': require('crypto').randomUUID() },
+  })));
+  const visitIds = regs.map((r) => r.body.data.id);
+  await Promise.all(visitIds.map((id) => call('POST', `/visits/${id}/call`, { token: doctor })));
+  return visitIds;
+}
+
+async function makeMedicine(adminToken, stock, tag) {
+  const code = `OBT-T${Date.now() % 1e9}${Math.floor(Math.random() * 1000)}`;
+  const r = await call('POST', '/medicines', { token: adminToken, body: { code, name: `Uji ${tag} ${code}`, unit: 'tablet', price: '1000', initial_stock: stock } });
+  if (r.status !== 201) throw new Error('medicine setup failed ' + JSON.stringify(r.body));
+  return r.body.data;
+}
+
+const NODE = process.env.NODE_URL || 'http://localhost:3001/api/v1';
+async function callNode(method, path, { token, body, headers = {} } = {}) {
+  const res = await fetch(NODE + path, {
+    method,
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function waitFor(fn, timeoutMs, label) {
+  const end = Date.now() + timeoutMs;
+  for (;;) {
+    const v = await fn();
+    if (v) return v;
+    if (Date.now() > end) throw new Error(`timeout waiting for: ${label}`);
+    await sleep(500);
+  }
+}
+
+module.exports = { call, callNode, login, today, makePatients, makeVisitsInExam, makeMedicine, waitFor, sleep, check, done };

@@ -20,7 +20,7 @@ class RbacController extends Controller
     /** Permissions that also need the doctor-owns-visit rule (plan section 8). */
     private const OWN_VISIT = ['visit.view' => 'visit.viewOwn', 'exam.read' => 'exam.readOwn', 'exam.write' => 'exam.writeOwn'];
 
-    private const CLINICAL = ['visit.list', 'visit.view', 'visit.create', 'visit.cancel', 'exam.read', 'exam.write', 'queue.read', 'patient.history'];
+    private const CLINICAL = ['pharmacy.worklist', 'pharmacy.dispense', 'lab.worklist', 'lab.result', 'patient.medications', 'visit.list', 'visit.view', 'visit.create', 'visit.cancel', 'exam.read', 'exam.write', 'queue.read', 'patient.history'];
 
     /** role => permission names ("master.<resource>.<action>"). Admin additionally gets everything. */
     private function matrix(): array
@@ -28,7 +28,7 @@ class RbacController extends Controller
         $read = static fn (array $resources) => array_map(static fn ($r) => "master.$r.read", $resources);
         return [
             // Admin: every master permission, and read-only access to the clinical flow.
-            'admin' => array_merge($this->masterPermissions(), ['visit.list', 'visit.view', 'exam.read', 'queue.read', 'patient.history']),
+            'admin' => array_merge($this->masterPermissions(), ['visit.list', 'visit.view', 'exam.read', 'queue.read', 'patient.history', 'pharmacy.worklist', 'lab.worklist', 'patient.medications']),
             'pendaftaran' => array_merge(
                 $read(['patients', 'polyclinics', 'schedules', 'staff']),
                 ['master.patients.create', 'master.patients.update'],
@@ -36,10 +36,10 @@ class RbacController extends Controller
             ),
             'dokter' => array_merge(
                 $read(['patients', 'polyclinics', 'schedules', 'staff', 'procedures', 'medicines', 'lab_tests', 'icd10']),
-                ['visit.list', 'visit.viewOwn', 'exam.readOwn', 'exam.writeOwn', 'queue.read', 'patient.history']
+                ['visit.list', 'visit.viewOwn', 'exam.readOwn', 'exam.writeOwn', 'queue.read', 'patient.history', 'patient.medications']
             ),
-            'farmasi' => array_merge($read(['medicines']), ['master.medicines.stock_adjust']),
-            'lab' => $read(['lab_tests']),
+            'farmasi' => array_merge($read(['medicines']), ['master.medicines.stock_adjust', 'pharmacy.worklist', 'pharmacy.dispense', 'patient.medications']),
+            'lab' => array_merge($read(['lab_tests']), ['lab.worklist', 'lab.result']),
             'kasir' => array_merge($read(['patients', 'polyclinics', 'procedures', 'medicines', 'lab_tests']), ['visit.list', 'visit.view', 'queue.read']),
         ];
     }

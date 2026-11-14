@@ -1,9 +1,10 @@
-import { Button, Card, Descriptions, Result, Space, Spin } from 'antd';
+import { Button, Card, Descriptions, Result, Space, Spin, Tabs } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { yiiApi, type ApiEnvelope } from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
 import type { Row } from '../../components/MasterCrudPage/types';
+import MedicationHistory from './MedicationHistory';
 import PatientHistory from './PatientHistory';
 
 export default function PatientHistoryPage() {
@@ -32,7 +33,12 @@ export default function PatientHistoryPage() {
             <Descriptions.Item label="Tanggal lahir">{patient.birth_date}</Descriptions.Item>
           </Descriptions>
         )}
-        <PatientHistory patientId={patientId} />
+        <Tabs
+          items={[
+            { key: 'visits', label: 'Riwayat kunjungan', children: <PatientHistory patientId={patientId} /> },
+            ...(can('patient.medications') ? [{ key: 'meds', label: 'Riwayat obat', children: <MedicationHistory patientId={patientId} /> }] : []),
+          ]}
+        />
       </Card>
     </Space>
   );

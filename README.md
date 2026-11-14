@@ -32,4 +32,4 @@ Password for all demo users: `Simrs#2026` (override with `SEED_USER_PASSWORD`).
 | `lab` | Laboratorium |
 | `kasir` | Kasir |
 
-Work in progress: phases F0-F3 (stack, database, login/RBAC, master data, registration & medical record) are done.
+Work in progress: phases F0-F4 (stack, database, login/RBAC, master data, registration & medical record, pharmacy, laboratory + integration) are done.

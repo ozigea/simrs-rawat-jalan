@@ -3,6 +3,7 @@ import { Collapse, Descriptions, Empty, List, Pagination, Space, Tag, Typography
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { yiiApi, type ApiEnvelope } from '../../api/client';
 import type { Row } from '../../components/MasterCrudPage/types';
+import { FlagTag } from '../../components/StatusTags';
 import VisitStatusTag from '../../components/VisitStatusTag';
 import { formatMoney } from '../../lib/format';
 
@@ -58,6 +59,30 @@ export default function PatientHistory({ patientId }: { patientId: number }) {
                   <List.Item>
                     <Tag color={d.type === 'PRIMARY' ? 'blue' : 'default'}>{d.type === 'PRIMARY' ? 'Utama' : 'Sekunder'}</Tag>
                     {d.icd10_code} - {d.description}
+                  </List.Item>
+                )}
+              />
+              <List
+                size="small"
+                header={<strong>Obat diserahkan</strong>}
+                locale={{ emptyText: 'Tidak ada obat' }}
+                dataSource={v.medicines}
+                renderItem={(m: Row) => (
+                  <List.Item>
+                    {m.name} - {m.dose}, {m.frequency} <Typography.Text type="secondary">(jml {m.qty} {m.unit})</Typography.Text>
+                  </List.Item>
+                )}
+              />
+              <List
+                size="small"
+                header={<strong>Hasil laboratorium</strong>}
+                locale={{ emptyText: 'Tidak ada pemeriksaan lab' }}
+                dataSource={v.lab_results}
+                renderItem={(l: Row) => (
+                  <List.Item>
+                    {l.test_name}: {l.result_value ? <strong>{l.result_value} {l.unit ?? ''}</strong> : <Typography.Text type="secondary">menunggu hasil</Typography.Text>}
+                    {l.result_flag && <FlagTag flag={l.result_flag} />}
+                    <Typography.Text type="secondary"> (normal {l.normal_range ?? '-'})</Typography.Text>
                   </List.Item>
                 )}
               />

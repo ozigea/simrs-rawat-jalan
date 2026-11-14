@@ -35,6 +35,8 @@ class ExaminationService
                     'vp.qty', 'vp.unit_tariff', '(vp.qty * vp.unit_tariff) AS amount', 'vp.status', 'vp.void_reason', 'vp.notes'])
                 ->from(['vp' => 'visit_procedure'])->innerJoin(['mp' => 'medical_procedure'], 'mp.id = vp.procedure_id')
                 ->where(['vp.visit_id' => $visitId])->orderBy(['vp.id' => SORT_ASC])->all(),
+            'prescriptions' => (new PharmacyService())->forVisit($visitId),
+            'lab_orders' => (new LabService())->forVisit($visitId),
         ];
     }
 
