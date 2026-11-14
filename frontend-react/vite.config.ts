@@ -10,8 +10,9 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/yii': { target: yii, changeOrigin: true, rewrite: (p) => p.replace(/^\/yii/, '') },
-      '/node': { target: node, changeOrigin: true, rewrite: (p) => p.replace(/^\/node/, '') },
+      // Anchored regex keys: a plain '/node' prefix would also capture '/node_modules/...'.
+      '^/yii/': { target: yii, changeOrigin: true, rewrite: (p) => p.replace(/^\/yii/, '') },
+      '^/node/': { target: node, changeOrigin: true, rewrite: (p) => p.replace(/^\/node/, '') },
     },
   },
 });

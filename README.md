@@ -19,4 +19,17 @@ docker compose up -d --build
 Reset everything (database + JWT keys): `docker compose down -v`.
 Change ports via `WEB_PORT_*` / `DB_PORT_HOST` in `.env` if they clash.
 
-Work in progress: setup phase F0 only (skeleton + health endpoints).
+### Demo accounts
+
+Password for all demo users: `Simrs#2026` (override with `SEED_USER_PASSWORD`).
+
+| Username | Role |
+| -------- | ---- |
+| `admin` | Administrator |
+| `pendaftaran` | Pendaftaran |
+| `dokter1`, `dokter2` | Dokter |
+| `farmasi` | Farmasi |
+| `lab` | Laboratorium |
+| `kasir` | Kasir |
+
+Work in progress: phases F0-F2 (stack, database, login/RBAC, master data) are done.

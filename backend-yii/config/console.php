@@ -11,10 +11,12 @@ return [
     'controllerMap' => [
         'migrate' => [
             'class' => 'yii\console\controllers\MigrateController',
-            'migrationPath' => '@app/migrations',
+            // Yii's stock RBAC tables (auth_*) + this project's migrations.
+            'migrationPath' => ['@app/migrations', '@yii/rbac/migrations'],
         ],
     ],
     'components' => [
+        'authManager' => ['class' => 'yii\rbac\DbManager'],
         'db' => require __DIR__ . '/db.php',
     ],
 ];

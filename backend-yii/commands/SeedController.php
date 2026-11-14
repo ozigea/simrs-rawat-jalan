@@ -23,6 +23,11 @@ class SeedController extends Controller
         'kasir'       => ['Petugas Kasir', null],
     ];
 
+    private const ROLES = [
+        'admin' => 'admin', 'pendaftaran' => 'pendaftaran', 'dokter1' => 'dokter', 'dokter2' => 'dokter',
+        'farmasi' => 'farmasi', 'lab' => 'lab', 'kasir' => 'kasir',
+    ];
+
     public function actionIndex(): int
     {
         $dir = getenv('SEED_DIR') ?: Yii::getAlias('@app/../database/seed');
@@ -42,6 +47,7 @@ class SeedController extends Controller
         }
 
         $this->seedUsers();
+        $this->assignRoles();
         return ExitCode::OK;
     }
 
@@ -68,5 +74,22 @@ class SeedController extends Controller
             $created++;
         }
         $this->stdout("users: $created created, " . (count(self::USERS) - $created) . " already present\n");
+    }
+
+    /** Needs `php yii rbac/init` first (roles must exist). */
+    private function assignRoles(): void
+    {
+        $auth = Yii::$app->authManager;
+        $assigned = 0;
+        foreach (self::ROLES as $username => $roleName) {
+            $id = Yii::$app->db->createCommand('SELECT id FROM app_user WHERE username = :u', [':u' => $username])->queryScalar();
+            $role = $auth->getRole($roleName);
+            if (!$id || !$role || $auth->getAssignment($roleName, $id)) {
+                continue;
+            }
+            $auth->assign($role, $id);
+            $assigned++;
+        }
+        $this->stdout("roles: $assigned assigned\n");
     }
 }

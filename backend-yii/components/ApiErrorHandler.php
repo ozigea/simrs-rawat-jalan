@@ -31,6 +31,12 @@ class ApiErrorHandler extends \yii\web\ErrorHandler
             ? $exception->getMessage()
             : 'Terjadi kesalahan internal';
 
+        $details = [];
+        if ($exception instanceof ApiException) {
+            $code = $exception->errorCode;
+            $details = $exception->details;
+        }
+
         $response = Yii::$app->has('response', true) ? Yii::$app->getResponse() : new Response();
         $response->isSent = false;
         $response->stream = null;
@@ -38,7 +44,7 @@ class ApiErrorHandler extends \yii\web\ErrorHandler
         $response->format = Response::FORMAT_JSON;
         $response->setStatusCode($status);
         $response->getHeaders()->set('X-Request-Id', ApiResponse::requestId());
-        $response->data = ApiResponse::error($code, $message);
+        $response->data = ApiResponse::error($code, $message, $details);
         $response->send();
     }
 }

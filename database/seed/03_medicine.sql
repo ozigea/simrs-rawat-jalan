@@ -31,3 +31,10 @@ INSERT INTO medicine (code, name, unit, price, stock_qty, min_stock) VALUES
  ('OBT-029', 'Zinc 20 mg',                  'tablet',  1500, 200, 30),
  ('OBT-030', 'Ondansetron 4 mg',            'tablet',  4500,   5, 10)
 ON CONFLICT (code) DO NOTHING;
+
+-- Opening balance in the stock ledger (kartu stok), only for medicines without any movement yet.
+INSERT INTO stock_movement (medicine_id, qty_change, movement_type, reason, balance_after)
+SELECT m.id, m.stock_qty, 'IN', 'Stok awal (seed)', m.stock_qty
+FROM medicine m
+WHERE m.stock_qty > 0
+  AND NOT EXISTS (SELECT 1 FROM stock_movement s WHERE s.medicine_id = m.id);
