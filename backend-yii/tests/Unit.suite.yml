@@ -1,0 +1,6 @@
+# Pure logic: no database, no HTTP. Bootstrapped with a PSR-4 loader for app\*.
+actor: UnitTester
+bootstrap: ../_bootstrap.php
+modules:
+  enabled:
+    - Asserts

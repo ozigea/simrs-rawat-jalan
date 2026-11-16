@@ -1,0 +1,819 @@
+################ WITH INDEXES (as migrated) - pass 1 (cold cache) ################
+--- Q1 dashboard summary: visits in 30 days (view v_dashboard_visit_daily)
+                                                   QUERY PLAN                                                   
+----------------------------------------------------------------------------------------------------------------
+ Aggregate (actual time=12.550..12.552 rows=1 loops=1)
+   ->  HashAggregate (actual time=12.515..12.541 rows=120 loops=1)
+         Group Key: v.visit_date, v.polyclinic_id, p.name
+         Batches: 1  Memory Usage: 129kB
+         ->  Hash Join (actual time=0.524..7.957 rows=15000 loops=1)
+               Hash Cond: (v.polyclinic_id = p.id)
+               ->  Bitmap Heap Scan on visit v (actual time=0.491..3.865 rows=15000 loops=1)
+                     Recheck Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+                     Heap Blocks: exact=321
+                     ->  Bitmap Index Scan on visit_date_poli_idx (actual time=0.456..0.456 rows=15000 loops=1)
+                           Index Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+               ->  Hash (actual time=0.013..0.014 rows=4 loops=1)
+                     Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                     ->  Seq Scan on polyclinic p (actual time=0.004..0.005 rows=4 loops=1)
+ Planning Time: 5.997 ms
+ Execution Time: 12.952 ms
+(16 rows)
+
+--- Q2 visits per polyclinic, 30 days
+                                                   QUERY PLAN                                                   
+----------------------------------------------------------------------------------------------------------------
+ HashAggregate (actual time=11.252..11.256 rows=4 loops=1)
+   Group Key: p.name
+   Batches: 1  Memory Usage: 40kB
+   ->  HashAggregate (actual time=11.178..11.211 rows=120 loops=1)
+         Group Key: v.visit_date, v.polyclinic_id, p.name
+         Batches: 1  Memory Usage: 129kB
+         ->  Hash Join (actual time=0.601..6.536 rows=15000 loops=1)
+               Hash Cond: (v.polyclinic_id = p.id)
+               ->  Bitmap Heap Scan on visit v (actual time=0.539..2.530 rows=15000 loops=1)
+                     Recheck Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+                     Heap Blocks: exact=321
+                     ->  Bitmap Index Scan on visit_date_poli_idx (actual time=0.503..0.503 rows=15000 loops=1)
+                           Index Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+               ->  Hash (actual time=0.048..0.049 rows=4 loops=1)
+                     Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                     ->  Seq Scan on polyclinic p (actual time=0.025..0.026 rows=4 loops=1)
+ Planning Time: 0.313 ms
+ Execution Time: 11.489 ms
+(18 rows)
+
+--- Q3 revenue trend per day, 30 days (view v_dashboard_revenue_daily)
+                                                               QUERY PLAN                                                                
+-----------------------------------------------------------------------------------------------------------------------------------------
+ HashAggregate (actual time=9.351..9.420 rows=30 loops=1)
+   Group Key: pay.paid_date
+   Batches: 1  Memory Usage: 48kB
+   ->  HashAggregate (actual time=9.263..9.307 rows=114 loops=1)
+         Group Key: pay.paid_date, pay.method
+         Batches: 1  Memory Usage: 105kB
+         ->  Bitmap Heap Scan on payment pay (actual time=0.696..3.290 rows=14250 loops=1)
+               Recheck Cond: ((paid_date >= (CURRENT_DATE - 29)) AND (paid_date <= CURRENT_DATE) AND ((status)::text = 'SUCCESS'::text))
+               Heap Blocks: exact=395
+               ->  Bitmap Index Scan on payment_paid_date_idx (actual time=0.619..0.619 rows=14250 loops=1)
+                     Index Cond: ((paid_date >= (CURRENT_DATE - 29)) AND (paid_date <= CURRENT_DATE))
+ Planning Time: 1.880 ms
+ Execution Time: 9.604 ms
+(13 rows)
+
+--- Q4 procedure recap, 30 days
+                                                               QUERY PLAN                                                               
+----------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=83.648..83.652 rows=10 loops=1)
+   ->  Sort (actual time=83.647..83.650 rows=10 loops=1)
+         Sort Key: (sum((sum(vp.qty)))) DESC
+         Sort Method: quicksort  Memory: 26kB
+         ->  HashAggregate (actual time=83.545..83.554 rows=20 loops=1)
+               Group Key: mp.name
+               Batches: 1  Memory Usage: 48kB
+               ->  HashAggregate (actual time=83.350..83.492 rows=180 loops=1)
+                     Group Key: v.visit_date, vp.procedure_id, mp.code, mp.name
+                     Batches: 1  Memory Usage: 913kB
+                     ->  Hash Join (actual time=6.093..68.659 rows=22500 loops=1)
+                           Hash Cond: (vp.procedure_id = mp.id)
+                           ->  Hash Join (actual time=6.050..64.061 rows=22500 loops=1)
+                                 Hash Cond: (vp.visit_id = v.id)
+                                 ->  Seq Scan on visit_procedure vp (actual time=0.010..27.608 rows=150000 loops=1)
+                                       Filter: ((status)::text = 'ACTIVE'::text)
+                                 ->  Hash (actual time=5.948..5.949 rows=15000 loops=1)
+                                       Buckets: 16384  Batches: 1  Memory Usage: 832kB
+                                       ->  Bitmap Heap Scan on visit v (actual time=0.569..3.471 rows=15000 loops=1)
+                                             Recheck Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+                                             Filter: ((status)::text <> 'CANCELLED'::text)
+                                             Heap Blocks: exact=321
+                                             ->  Bitmap Index Scan on visit_date_poli_idx (actual time=0.531..0.531 rows=15000 loops=1)
+                                                   Index Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+                           ->  Hash (actual time=0.025..0.025 rows=20 loops=1)
+                                 Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                                 ->  Seq Scan on medical_procedure mp (actual time=0.006..0.010 rows=20 loops=1)
+ Planning Time: 3.149 ms
+ Execution Time: 84.480 ms
+(29 rows)
+
+--- Q5 medicine usage, 30 days
+                                                                                    QUERY PLAN                                                                                     
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=27.047..27.051 rows=10 loops=1)
+   ->  Sort (actual time=27.046..27.049 rows=10 loops=1)
+         Sort Key: (sum((sum(pi.qty)))) DESC
+         Sort Method: top-N heapsort  Memory: 25kB
+         ->  HashAggregate (actual time=27.019..27.028 rows=30 loops=1)
+               Group Key: m.name
+               Batches: 1  Memory Usage: 40kB
+               ->  HashAggregate (actual time=26.916..26.981 rows=180 loops=1)
+                     Group Key: rx.dispensed_date, pi.medicine_id, m.code, m.name, m.unit
+                     Batches: 1  Memory Usage: 433kB
+                     ->  Hash Join (actual time=5.918..22.859 rows=7500 loops=1)
+                           Hash Cond: (pi.medicine_id = m.id)
+                           ->  Hash Join (actual time=5.876..21.060 rows=7500 loops=1)
+                                 Hash Cond: (pi.prescription_id = rx.id)
+                                 ->  Seq Scan on prescription_item pi (actual time=0.002..4.392 rows=50000 loops=1)
+                                 ->  Hash (actual time=5.810..5.811 rows=7500 loops=1)
+                                       Buckets: 8192  Batches: 1  Memory Usage: 416kB
+                                       ->  Bitmap Heap Scan on prescription rx (actual time=0.300..3.721 rows=7500 loops=1)
+                                             Recheck Cond: ((dispensed_date >= (CURRENT_DATE - 29)) AND (dispensed_date <= CURRENT_DATE) AND ((status)::text = 'DISPENSED'::text))
+                                             Heap Blocks: exact=245
+                                             ->  Bitmap Index Scan on prescription_dispensed_date_idx (actual time=0.268..0.268 rows=7500 loops=1)
+                                                   Index Cond: ((dispensed_date >= (CURRENT_DATE - 29)) AND (dispensed_date <= CURRENT_DATE))
+                           ->  Hash (actual time=0.031..0.031 rows=30 loops=1)
+                                 Buckets: 1024  Batches: 1  Memory Usage: 11kB
+                                 ->  Seq Scan on medicine m (actual time=0.008..0.014 rows=30 loops=1)
+ Planning Time: 2.421 ms
+ Execution Time: 27.578 ms
+(27 rows)
+
+--- Q6 queue board: one polyclinic, one day
+                                               QUERY PLAN                                               
+--------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.278..0.283 rows=50 loops=1)
+   InitPlan 1 (returns $1)
+     ->  Aggregate (actual time=0.009..0.010 rows=1 loops=1)
+           ->  Seq Scan on polyclinic (actual time=0.004..0.005 rows=4 loops=1)
+   ->  Sort (actual time=0.277..0.279 rows=50 loops=1)
+         Sort Key: visit.queue_no
+         Sort Method: top-N heapsort  Memory: 28kB
+         ->  Bitmap Heap Scan on visit (actual time=0.055..0.206 rows=125 loops=1)
+               Recheck Cond: ((visit_date = (CURRENT_DATE - 3)) AND (polyclinic_id = $1))
+               Heap Blocks: exact=125
+               ->  Bitmap Index Scan on visit_date_poli_idx (actual time=0.038..0.038 rows=125 loops=1)
+                     Index Cond: ((visit_date = (CURRENT_DATE - 3)) AND (polyclinic_id = $1))
+ Planning Time: 0.220 ms
+ Execution Time: 0.358 ms
+(14 rows)
+
+--- Q7 patient search by name (trigram)
+                                            QUERY PLAN                                            
+--------------------------------------------------------------------------------------------------
+ Limit (actual time=1.949..1.951 rows=1 loops=1)
+   ->  Bitmap Heap Scan on patient (actual time=1.948..1.949 rows=1 loops=1)
+         Recheck Cond: ((name)::text ~~* '%Pasien 12345%'::text)
+         Heap Blocks: exact=1
+         ->  Bitmap Index Scan on patient_name_trgm_idx (actual time=1.932..1.932 rows=1 loops=1)
+               Index Cond: ((name)::text ~~* '%Pasien 12345%'::text)
+ Planning Time: 1.070 ms
+ Execution Time: 2.209 ms
+(8 rows)
+
+--- Q8 visit history of one patient
+                                             QUERY PLAN                                             
+----------------------------------------------------------------------------------------------------
+ Sort (actual time=5.604..5.606 rows=4 loops=1)
+   Sort Key: visit.visit_date DESC
+   Sort Method: quicksort  Memory: 25kB
+   InitPlan 1 (returns $0)
+     ->  Bitmap Heap Scan on patient (actual time=5.496..5.506 rows=1 loops=1)
+           Recheck Cond: ((name)::text = 'PERF Pasien 777'::text)
+           Rows Removed by Index Recheck: 1
+           Heap Blocks: exact=2
+           ->  Bitmap Index Scan on patient_name_trgm_idx (actual time=5.480..5.480 rows=2 loops=1)
+                 Index Cond: ((name)::text = 'PERF Pasien 777'::text)
+   ->  Index Scan using visit_patient_idx on visit (actual time=5.562..5.564 rows=4 loops=1)
+         Index Cond: (patient_id = $0)
+ Planning Time: 0.354 ms
+ Execution Time: 5.797 ms
+(14 rows)
+
+--- Q9 visits by status and date (worklist)
+                                               QUERY PLAN                                                
+---------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.300..0.305 rows=50 loops=1)
+   ->  Sort (actual time=0.299..0.301 rows=50 loops=1)
+         Sort Key: queue_no
+         Sort Method: top-N heapsort  Memory: 26kB
+         ->  Index Scan using visit_status_date_idx on visit (actual time=0.041..0.236 rows=500 loops=1)
+               Index Cond: (((status)::text = 'DONE'::text) AND (visit_date = (CURRENT_DATE - 5)))
+ Planning Time: 0.260 ms
+ Execution Time: 0.330 ms
+(8 rows)
+
+--- Q10 payments of an invoice
+                                        QUERY PLAN                                         
+-------------------------------------------------------------------------------------------
+ Index Scan using payment_invoice_idx on payment (actual time=0.061..0.062 rows=1 loops=1)
+   Index Cond: (invoice_id = 54321)
+ Planning Time: 0.141 ms
+ Execution Time: 0.100 ms
+(4 rows)
+
+################ WITH INDEXES (as migrated) - pass 2 (warm cache) ################
+--- Q1 dashboard summary: visits in 30 days (view v_dashboard_visit_daily)
+                                                   QUERY PLAN                                                   
+----------------------------------------------------------------------------------------------------------------
+ Aggregate (actual time=11.182..11.186 rows=1 loops=1)
+   ->  HashAggregate (actual time=11.141..11.172 rows=120 loops=1)
+         Group Key: v.visit_date, v.polyclinic_id, p.name
+         Batches: 1  Memory Usage: 129kB
+         ->  Hash Join (actual time=0.746..6.696 rows=15000 loops=1)
+               Hash Cond: (v.polyclinic_id = p.id)
+               ->  Bitmap Heap Scan on visit v (actual time=0.698..2.738 rows=15000 loops=1)
+                     Recheck Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+                     Heap Blocks: exact=321
+                     ->  Bitmap Index Scan on visit_date_poli_idx (actual time=0.648..0.648 rows=15000 loops=1)
+                           Index Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+               ->  Hash (actual time=0.024..0.025 rows=4 loops=1)
+                     Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                     ->  Seq Scan on polyclinic p (actual time=0.011..0.012 rows=4 loops=1)
+ Planning Time: 0.502 ms
+ Execution Time: 11.453 ms
+(16 rows)
+
+--- Q2 visits per polyclinic, 30 days
+                                                   QUERY PLAN                                                   
+----------------------------------------------------------------------------------------------------------------
+ HashAggregate (actual time=8.012..8.015 rows=4 loops=1)
+   Group Key: p.name
+   Batches: 1  Memory Usage: 40kB
+   ->  HashAggregate (actual time=7.966..7.991 rows=120 loops=1)
+         Group Key: v.visit_date, v.polyclinic_id, p.name
+         Batches: 1  Memory Usage: 129kB
+         ->  Hash Join (actual time=0.506..4.741 rows=15000 loops=1)
+               Hash Cond: (v.polyclinic_id = p.id)
+               ->  Bitmap Heap Scan on visit v (actual time=0.478..1.812 rows=15000 loops=1)
+                     Recheck Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+                     Heap Blocks: exact=321
+                     ->  Bitmap Index Scan on visit_date_poli_idx (actual time=0.443..0.443 rows=15000 loops=1)
+                           Index Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+               ->  Hash (actual time=0.016..0.017 rows=4 loops=1)
+                     Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                     ->  Seq Scan on polyclinic p (actual time=0.006..0.008 rows=4 loops=1)
+ Planning Time: 0.543 ms
+ Execution Time: 8.233 ms
+(18 rows)
+
+--- Q3 revenue trend per day, 30 days (view v_dashboard_revenue_daily)
+                                                               QUERY PLAN                                                                
+-----------------------------------------------------------------------------------------------------------------------------------------
+ HashAggregate (actual time=11.830..11.839 rows=30 loops=1)
+   Group Key: pay.paid_date
+   Batches: 1  Memory Usage: 48kB
+   ->  HashAggregate (actual time=11.743..11.799 rows=114 loops=1)
+         Group Key: pay.paid_date, pay.method
+         Batches: 1  Memory Usage: 105kB
+         ->  Bitmap Heap Scan on payment pay (actual time=0.735..3.490 rows=14250 loops=1)
+               Recheck Cond: ((paid_date >= (CURRENT_DATE - 29)) AND (paid_date <= CURRENT_DATE) AND ((status)::text = 'SUCCESS'::text))
+               Heap Blocks: exact=395
+               ->  Bitmap Index Scan on payment_paid_date_idx (actual time=0.663..0.664 rows=14250 loops=1)
+                     Index Cond: ((paid_date >= (CURRENT_DATE - 29)) AND (paid_date <= CURRENT_DATE))
+ Planning Time: 0.275 ms
+ Execution Time: 12.051 ms
+(13 rows)
+
+--- Q4 procedure recap, 30 days
+                                                               QUERY PLAN                                                               
+----------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=81.407..81.412 rows=10 loops=1)
+   ->  Sort (actual time=81.406..81.409 rows=10 loops=1)
+         Sort Key: (sum((sum(vp.qty)))) DESC
+         Sort Method: quicksort  Memory: 26kB
+         ->  HashAggregate (actual time=81.383..81.393 rows=20 loops=1)
+               Group Key: mp.name
+               Batches: 1  Memory Usage: 48kB
+               ->  HashAggregate (actual time=81.187..81.337 rows=180 loops=1)
+                     Group Key: v.visit_date, vp.procedure_id, mp.code, mp.name
+                     Batches: 1  Memory Usage: 913kB
+                     ->  Hash Join (actual time=7.546..66.546 rows=22500 loops=1)
+                           Hash Cond: (vp.procedure_id = mp.id)
+                           ->  Hash Join (actual time=7.513..61.883 rows=22500 loops=1)
+                                 Hash Cond: (vp.visit_id = v.id)
+                                 ->  Seq Scan on visit_procedure vp (actual time=0.016..24.871 rows=150000 loops=1)
+                                       Filter: ((status)::text = 'ACTIVE'::text)
+                                 ->  Hash (actual time=7.412..7.413 rows=15000 loops=1)
+                                       Buckets: 16384  Batches: 1  Memory Usage: 832kB
+                                       ->  Bitmap Heap Scan on visit v (actual time=0.654..4.210 rows=15000 loops=1)
+                                             Recheck Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+                                             Filter: ((status)::text <> 'CANCELLED'::text)
+                                             Heap Blocks: exact=321
+                                             ->  Bitmap Index Scan on visit_date_poli_idx (actual time=0.602..0.602 rows=15000 loops=1)
+                                                   Index Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+                           ->  Hash (actual time=0.021..0.021 rows=20 loops=1)
+                                 Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                                 ->  Seq Scan on medical_procedure mp (actual time=0.005..0.007 rows=20 loops=1)
+ Planning Time: 0.587 ms
+ Execution Time: 82.256 ms
+(29 rows)
+
+--- Q5 medicine usage, 30 days
+                                                                                    QUERY PLAN                                                                                     
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=23.014..23.032 rows=10 loops=1)
+   ->  Sort (actual time=23.013..23.026 rows=10 loops=1)
+         Sort Key: (sum((sum(pi.qty)))) DESC
+         Sort Method: top-N heapsort  Memory: 25kB
+         ->  HashAggregate (actual time=22.965..22.989 rows=30 loops=1)
+               Group Key: m.name
+               Batches: 1  Memory Usage: 40kB
+               ->  HashAggregate (actual time=22.776..22.888 rows=180 loops=1)
+                     Group Key: rx.dispensed_date, pi.medicine_id, m.code, m.name, m.unit
+                     Batches: 1  Memory Usage: 433kB
+                     ->  Hash Join (actual time=2.843..19.220 rows=7500 loops=1)
+                           Hash Cond: (pi.medicine_id = m.id)
+                           ->  Hash Join (actual time=2.799..17.605 rows=7500 loops=1)
+                                 Hash Cond: (pi.prescription_id = rx.id)
+                                 ->  Seq Scan on prescription_item pi (actual time=0.004..3.508 rows=50000 loops=1)
+                                 ->  Hash (actual time=2.757..2.761 rows=7500 loops=1)
+                                       Buckets: 8192  Batches: 1  Memory Usage: 416kB
+                                       ->  Bitmap Heap Scan on prescription rx (actual time=0.291..1.630 rows=7500 loops=1)
+                                             Recheck Cond: ((dispensed_date >= (CURRENT_DATE - 29)) AND (dispensed_date <= CURRENT_DATE) AND ((status)::text = 'DISPENSED'::text))
+                                             Heap Blocks: exact=245
+                                             ->  Bitmap Index Scan on prescription_dispensed_date_idx (actual time=0.257..0.258 rows=7500 loops=1)
+                                                   Index Cond: ((dispensed_date >= (CURRENT_DATE - 29)) AND (dispensed_date <= CURRENT_DATE))
+                           ->  Hash (actual time=0.032..0.033 rows=30 loops=1)
+                                 Buckets: 1024  Batches: 1  Memory Usage: 11kB
+                                 ->  Seq Scan on medicine m (actual time=0.005..0.015 rows=30 loops=1)
+ Planning Time: 0.565 ms
+ Execution Time: 23.545 ms
+(27 rows)
+
+--- Q6 queue board: one polyclinic, one day
+                                               QUERY PLAN                                               
+--------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.274..0.278 rows=50 loops=1)
+   InitPlan 1 (returns $1)
+     ->  Aggregate (actual time=0.013..0.013 rows=1 loops=1)
+           ->  Seq Scan on polyclinic (actual time=0.006..0.007 rows=4 loops=1)
+   ->  Sort (actual time=0.273..0.274 rows=50 loops=1)
+         Sort Key: visit.queue_no
+         Sort Method: top-N heapsort  Memory: 28kB
+         ->  Bitmap Heap Scan on visit (actual time=0.123..0.244 rows=125 loops=1)
+               Recheck Cond: ((visit_date = (CURRENT_DATE - 3)) AND (polyclinic_id = $1))
+               Heap Blocks: exact=125
+               ->  Bitmap Index Scan on visit_date_poli_idx (actual time=0.050..0.050 rows=125 loops=1)
+                     Index Cond: ((visit_date = (CURRENT_DATE - 3)) AND (polyclinic_id = $1))
+ Planning Time: 0.228 ms
+ Execution Time: 0.361 ms
+(14 rows)
+
+--- Q7 patient search by name (trigram)
+                                            QUERY PLAN                                            
+--------------------------------------------------------------------------------------------------
+ Limit (actual time=1.916..1.918 rows=1 loops=1)
+   ->  Bitmap Heap Scan on patient (actual time=1.915..1.916 rows=1 loops=1)
+         Recheck Cond: ((name)::text ~~* '%Pasien 12345%'::text)
+         Heap Blocks: exact=1
+         ->  Bitmap Index Scan on patient_name_trgm_idx (actual time=1.901..1.901 rows=1 loops=1)
+               Index Cond: ((name)::text ~~* '%Pasien 12345%'::text)
+ Planning Time: 0.245 ms
+ Execution Time: 2.007 ms
+(8 rows)
+
+--- Q8 visit history of one patient
+                                             QUERY PLAN                                             
+----------------------------------------------------------------------------------------------------
+ Sort (actual time=3.264..3.265 rows=4 loops=1)
+   Sort Key: visit.visit_date DESC
+   Sort Method: quicksort  Memory: 25kB
+   InitPlan 1 (returns $0)
+     ->  Bitmap Heap Scan on patient (actual time=3.224..3.227 rows=1 loops=1)
+           Recheck Cond: ((name)::text = 'PERF Pasien 777'::text)
+           Rows Removed by Index Recheck: 1
+           Heap Blocks: exact=2
+           ->  Bitmap Index Scan on patient_name_trgm_idx (actual time=3.213..3.214 rows=2 loops=1)
+                 Index Cond: ((name)::text = 'PERF Pasien 777'::text)
+   ->  Index Scan using visit_patient_idx on visit (actual time=3.248..3.249 rows=4 loops=1)
+         Index Cond: (patient_id = $0)
+ Planning Time: 0.160 ms
+ Execution Time: 3.418 ms
+(14 rows)
+
+--- Q9 visits by status and date (worklist)
+                                               QUERY PLAN                                                
+---------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.271..0.281 rows=50 loops=1)
+   ->  Sort (actual time=0.270..0.274 rows=50 loops=1)
+         Sort Key: queue_no
+         Sort Method: top-N heapsort  Memory: 26kB
+         ->  Index Scan using visit_status_date_idx on visit (actual time=0.037..0.204 rows=500 loops=1)
+               Index Cond: (((status)::text = 'DONE'::text) AND (visit_date = (CURRENT_DATE - 5)))
+ Planning Time: 0.166 ms
+ Execution Time: 0.308 ms
+(8 rows)
+
+--- Q10 payments of an invoice
+                                        QUERY PLAN                                         
+-------------------------------------------------------------------------------------------
+ Index Scan using payment_invoice_idx on payment (actual time=0.029..0.030 rows=1 loops=1)
+   Index Cond: (invoice_id = 54321)
+ Planning Time: 0.059 ms
+ Execution Time: 0.045 ms
+(4 rows)
+
+BEGIN
+DROP INDEX
+################ WITHOUT the 6 optional indexes (rolled back afterwards) - pass 1 ################
+--- Q1 dashboard summary: visits in 30 days (view v_dashboard_visit_daily)
+                                                    QUERY PLAN                                                    
+------------------------------------------------------------------------------------------------------------------
+ Aggregate (actual time=12.707..12.710 rows=1 loops=1)
+   ->  HashAggregate (actual time=12.673..12.699 rows=120 loops=1)
+         Group Key: v.visit_date, v.polyclinic_id, p.name
+         Batches: 1  Memory Usage: 129kB
+         ->  Hash Join (actual time=1.475..7.627 rows=15000 loops=1)
+               Hash Cond: (v.polyclinic_id = p.id)
+               ->  Bitmap Heap Scan on visit v (actual time=1.433..3.462 rows=15000 loops=1)
+                     Recheck Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+                     Heap Blocks: exact=321
+                     ->  Bitmap Index Scan on visit_doctor_date_idx (actual time=1.378..1.378 rows=15000 loops=1)
+                           Index Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+               ->  Hash (actual time=0.019..0.020 rows=4 loops=1)
+                     Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                     ->  Seq Scan on polyclinic p (actual time=0.007..0.008 rows=4 loops=1)
+ Planning Time: 0.496 ms
+ Execution Time: 12.979 ms
+(16 rows)
+
+--- Q2 visits per polyclinic, 30 days
+                                                    QUERY PLAN                                                    
+------------------------------------------------------------------------------------------------------------------
+ HashAggregate (actual time=13.110..13.114 rows=4 loops=1)
+   Group Key: p.name
+   Batches: 1  Memory Usage: 40kB
+   ->  HashAggregate (actual time=13.062..13.087 rows=120 loops=1)
+         Group Key: v.visit_date, v.polyclinic_id, p.name
+         Batches: 1  Memory Usage: 129kB
+         ->  Hash Join (actual time=0.802..7.917 rows=15000 loops=1)
+               Hash Cond: (v.polyclinic_id = p.id)
+               ->  Bitmap Heap Scan on visit v (actual time=0.763..3.435 rows=15000 loops=1)
+                     Recheck Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+                     Heap Blocks: exact=321
+                     ->  Bitmap Index Scan on visit_doctor_date_idx (actual time=0.729..0.729 rows=15000 loops=1)
+                           Index Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+               ->  Hash (actual time=0.027..0.027 rows=4 loops=1)
+                     Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                     ->  Seq Scan on polyclinic p (actual time=0.018..0.019 rows=4 loops=1)
+ Planning Time: 0.261 ms
+ Execution Time: 13.314 ms
+(18 rows)
+
+--- Q3 revenue trend per day, 30 days (view v_dashboard_revenue_daily)
+                                                                  QUERY PLAN                                                                   
+-----------------------------------------------------------------------------------------------------------------------------------------------
+ GroupAggregate (actual time=30.546..30.580 rows=30 loops=1)
+   Group Key: v_dashboard_revenue_daily.pay_date
+   ->  Sort (actual time=30.541..30.546 rows=114 loops=1)
+         Sort Key: v_dashboard_revenue_daily.pay_date
+         Sort Method: quicksort  Memory: 29kB
+         ->  Subquery Scan on v_dashboard_revenue_daily (actual time=30.471..30.510 rows=114 loops=1)
+               ->  HashAggregate (actual time=30.470..30.501 rows=114 loops=1)
+                     Group Key: pay.paid_date, pay.method
+                     Batches: 1  Memory Usage: 105kB
+                     ->  Seq Scan on payment pay (actual time=0.026..25.781 rows=14250 loops=1)
+                           Filter: (((status)::text = 'SUCCESS'::text) AND (paid_date <= CURRENT_DATE) AND (paid_date >= (CURRENT_DATE - 29)))
+                           Rows Removed by Filter: 80750
+ Planning Time: 0.228 ms
+ Execution Time: 30.634 ms
+(14 rows)
+
+--- Q4 procedure recap, 30 days
+                                                                QUERY PLAN                                                                
+------------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=79.240..79.245 rows=10 loops=1)
+   ->  Sort (actual time=79.239..79.242 rows=10 loops=1)
+         Sort Key: (sum((sum(vp.qty)))) DESC
+         Sort Method: quicksort  Memory: 26kB
+         ->  HashAggregate (actual time=79.223..79.232 rows=20 loops=1)
+               Group Key: mp.name
+               Batches: 1  Memory Usage: 48kB
+               ->  HashAggregate (actual time=78.977..79.164 rows=180 loops=1)
+                     Group Key: v.visit_date, vp.procedure_id, mp.code, mp.name
+                     Batches: 1  Memory Usage: 913kB
+                     ->  Hash Join (actual time=6.614..64.976 rows=22500 loops=1)
+                           Hash Cond: (vp.procedure_id = mp.id)
+                           ->  Hash Join (actual time=6.563..60.359 rows=22500 loops=1)
+                                 Hash Cond: (vp.visit_id = v.id)
+                                 ->  Seq Scan on visit_procedure vp (actual time=0.009..25.101 rows=150000 loops=1)
+                                       Filter: ((status)::text = 'ACTIVE'::text)
+                                 ->  Hash (actual time=6.467..6.468 rows=15000 loops=1)
+                                       Buckets: 16384  Batches: 1  Memory Usage: 832kB
+                                       ->  Bitmap Heap Scan on visit v (actual time=0.700..3.802 rows=15000 loops=1)
+                                             Recheck Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+                                             Filter: ((status)::text <> 'CANCELLED'::text)
+                                             Heap Blocks: exact=321
+                                             ->  Bitmap Index Scan on visit_doctor_date_idx (actual time=0.662..0.662 rows=15000 loops=1)
+                                                   Index Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+                           ->  Hash (actual time=0.023..0.023 rows=20 loops=1)
+                                 Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                                 ->  Seq Scan on medical_procedure mp (actual time=0.006..0.008 rows=20 loops=1)
+ Planning Time: 0.627 ms
+ Execution Time: 80.085 ms
+(29 rows)
+
+--- Q5 medicine usage, 30 days
+                                                                                    QUERY PLAN                                                                                     
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=19.985..19.990 rows=10 loops=1)
+   ->  Sort (actual time=19.984..19.987 rows=10 loops=1)
+         Sort Key: (sum((sum(pi.qty)))) DESC
+         Sort Method: top-N heapsort  Memory: 25kB
+         ->  HashAggregate (actual time=19.963..19.972 rows=30 loops=1)
+               Group Key: m.name
+               Batches: 1  Memory Usage: 40kB
+               ->  HashAggregate (actual time=19.825..19.923 rows=180 loops=1)
+                     Group Key: rx.dispensed_date, pi.medicine_id, m.code, m.name, m.unit
+                     Batches: 1  Memory Usage: 433kB
+                     ->  Hash Join (actual time=3.116..16.625 rows=7500 loops=1)
+                           Hash Cond: (pi.medicine_id = m.id)
+                           ->  Hash Join (actual time=3.076..15.245 rows=7500 loops=1)
+                                 Hash Cond: (pi.prescription_id = rx.id)
+                                 ->  Seq Scan on prescription_item pi (actual time=0.002..3.120 rows=50000 loops=1)
+                                 ->  Hash (actual time=3.033..3.034 rows=7500 loops=1)
+                                       Buckets: 8192  Batches: 1  Memory Usage: 416kB
+                                       ->  Bitmap Heap Scan on prescription rx (actual time=0.241..1.675 rows=7500 loops=1)
+                                             Recheck Cond: ((dispensed_date >= (CURRENT_DATE - 29)) AND (dispensed_date <= CURRENT_DATE) AND ((status)::text = 'DISPENSED'::text))
+                                             Heap Blocks: exact=245
+                                             ->  Bitmap Index Scan on prescription_dispensed_date_idx (actual time=0.206..0.206 rows=7500 loops=1)
+                                                   Index Cond: ((dispensed_date >= (CURRENT_DATE - 29)) AND (dispensed_date <= CURRENT_DATE))
+                           ->  Hash (actual time=0.024..0.024 rows=30 loops=1)
+                                 Buckets: 1024  Batches: 1  Memory Usage: 11kB
+                                 ->  Seq Scan on medicine m (actual time=0.006..0.011 rows=30 loops=1)
+ Planning Time: 0.555 ms
+ Execution Time: 20.501 ms
+(27 rows)
+
+--- Q6 queue board: one polyclinic, one day
+                                                QUERY PLAN                                                
+----------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.458..0.463 rows=50 loops=1)
+   InitPlan 1 (returns $1)
+     ->  Aggregate (actual time=0.006..0.006 rows=1 loops=1)
+           ->  Seq Scan on polyclinic (actual time=0.003..0.003 rows=4 loops=1)
+   ->  Sort (actual time=0.457..0.459 rows=50 loops=1)
+         Sort Key: visit.queue_no
+         Sort Method: top-N heapsort  Memory: 28kB
+         ->  Bitmap Heap Scan on visit (actual time=0.280..0.434 rows=125 loops=1)
+               Recheck Cond: (visit_date = (CURRENT_DATE - 3))
+               Filter: (polyclinic_id = $1)
+               Rows Removed by Filter: 375
+               Heap Blocks: exact=125
+               ->  Bitmap Index Scan on visit_doctor_date_idx (actual time=0.254..0.254 rows=500 loops=1)
+                     Index Cond: (visit_date = (CURRENT_DATE - 3))
+ Planning Time: 0.206 ms
+ Execution Time: 0.528 ms
+(16 rows)
+
+--- Q7 patient search by name (trigram)
+                              QUERY PLAN                               
+-----------------------------------------------------------------------
+ Limit (actual time=12.460..23.532 rows=1 loops=1)
+   ->  Seq Scan on patient (actual time=12.459..23.530 rows=1 loops=1)
+         Filter: ((name)::text ~~* '%Pasien 12345%'::text)
+         Rows Removed by Filter: 25029
+ Planning Time: 0.236 ms
+ Execution Time: 23.544 ms
+(6 rows)
+
+--- Q8 visit history of one patient
+                              QUERY PLAN                               
+-----------------------------------------------------------------------
+ Sort (actual time=9.644..9.646 rows=4 loops=1)
+   Sort Key: visit.visit_date DESC
+   Sort Method: quicksort  Memory: 25kB
+   InitPlan 1 (returns $0)
+     ->  Seq Scan on patient (actual time=0.068..1.827 rows=1 loops=1)
+           Filter: ((name)::text = 'PERF Pasien 777'::text)
+           Rows Removed by Filter: 25029
+   ->  Seq Scan on visit (actual time=2.038..9.637 rows=4 loops=1)
+         Filter: (patient_id = $0)
+         Rows Removed by Filter: 99996
+ Planning Time: 0.165 ms
+ Execution Time: 9.663 ms
+(12 rows)
+
+--- Q9 visits by status and date (worklist)
+                                                QUERY PLAN                                                
+----------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.643..0.648 rows=50 loops=1)
+   ->  Sort (actual time=0.642..0.644 rows=50 loops=1)
+         Sort Key: queue_no
+         Sort Method: top-N heapsort  Memory: 26kB
+         ->  Bitmap Heap Scan on visit (actual time=0.435..0.594 rows=500 loops=1)
+               Recheck Cond: (visit_date = (CURRENT_DATE - 5))
+               Filter: ((status)::text = 'DONE'::text)
+               Heap Blocks: exact=125
+               ->  Bitmap Index Scan on visit_doctor_date_idx (actual time=0.420..0.421 rows=500 loops=1)
+                     Index Cond: (visit_date = (CURRENT_DATE - 5))
+ Planning Time: 0.133 ms
+ Execution Time: 0.684 ms
+(12 rows)
+
+--- Q10 payments of an invoice
+                           QUERY PLAN                           
+----------------------------------------------------------------
+ Seq Scan on payment (actual time=7.263..10.807 rows=1 loops=1)
+   Filter: (invoice_id = 54321)
+   Rows Removed by Filter: 94999
+ Planning Time: 0.057 ms
+ Execution Time: 10.819 ms
+(5 rows)
+
+################ WITHOUT the 6 optional indexes - pass 2 (warm cache) ################
+--- Q1 dashboard summary: visits in 30 days (view v_dashboard_visit_daily)
+                                                    QUERY PLAN                                                    
+------------------------------------------------------------------------------------------------------------------
+ Aggregate (actual time=10.352..10.354 rows=1 loops=1)
+   ->  HashAggregate (actual time=10.320..10.343 rows=120 loops=1)
+         Group Key: v.visit_date, v.polyclinic_id, p.name
+         Batches: 1  Memory Usage: 129kB
+         ->  Hash Join (actual time=0.791..6.103 rows=15000 loops=1)
+               Hash Cond: (v.polyclinic_id = p.id)
+               ->  Bitmap Heap Scan on visit v (actual time=0.715..2.413 rows=15000 loops=1)
+                     Recheck Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+                     Heap Blocks: exact=321
+                     ->  Bitmap Index Scan on visit_doctor_date_idx (actual time=0.673..0.674 rows=15000 loops=1)
+                           Index Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+               ->  Hash (actual time=0.013..0.014 rows=4 loops=1)
+                     Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                     ->  Seq Scan on polyclinic p (actual time=0.005..0.005 rows=4 loops=1)
+ Planning Time: 0.312 ms
+ Execution Time: 10.539 ms
+(16 rows)
+
+--- Q2 visits per polyclinic, 30 days
+                                                    QUERY PLAN                                                    
+------------------------------------------------------------------------------------------------------------------
+ HashAggregate (actual time=8.666..8.670 rows=4 loops=1)
+   Group Key: p.name
+   Batches: 1  Memory Usage: 40kB
+   ->  HashAggregate (actual time=8.622..8.645 rows=120 loops=1)
+         Group Key: v.visit_date, v.polyclinic_id, p.name
+         Batches: 1  Memory Usage: 129kB
+         ->  Hash Join (actual time=0.723..5.165 rows=15000 loops=1)
+               Hash Cond: (v.polyclinic_id = p.id)
+               ->  Bitmap Heap Scan on visit v (actual time=0.696..2.099 rows=15000 loops=1)
+                     Recheck Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+                     Heap Blocks: exact=321
+                     ->  Bitmap Index Scan on visit_doctor_date_idx (actual time=0.655..0.656 rows=15000 loops=1)
+                           Index Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+               ->  Hash (actual time=0.014..0.014 rows=4 loops=1)
+                     Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                     ->  Seq Scan on polyclinic p (actual time=0.005..0.006 rows=4 loops=1)
+ Planning Time: 0.303 ms
+ Execution Time: 8.878 ms
+(18 rows)
+
+--- Q3 revenue trend per day, 30 days (view v_dashboard_revenue_daily)
+                                                                  QUERY PLAN                                                                   
+-----------------------------------------------------------------------------------------------------------------------------------------------
+ GroupAggregate (actual time=30.074..30.125 rows=30 loops=1)
+   Group Key: v_dashboard_revenue_daily.pay_date
+   ->  Sort (actual time=30.066..30.071 rows=114 loops=1)
+         Sort Key: v_dashboard_revenue_daily.pay_date
+         Sort Method: quicksort  Memory: 29kB
+         ->  Subquery Scan on v_dashboard_revenue_daily (actual time=29.962..30.042 rows=114 loops=1)
+               ->  HashAggregate (actual time=29.959..30.025 rows=114 loops=1)
+                     Group Key: pay.paid_date, pay.method
+                     Batches: 1  Memory Usage: 105kB
+                     ->  Seq Scan on payment pay (actual time=0.026..25.139 rows=14250 loops=1)
+                           Filter: (((status)::text = 'SUCCESS'::text) AND (paid_date <= CURRENT_DATE) AND (paid_date >= (CURRENT_DATE - 29)))
+                           Rows Removed by Filter: 80750
+ Planning Time: 0.169 ms
+ Execution Time: 30.190 ms
+(14 rows)
+
+--- Q4 procedure recap, 30 days
+                                                                QUERY PLAN                                                                
+------------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=81.688..81.694 rows=10 loops=1)
+   ->  Sort (actual time=81.686..81.691 rows=10 loops=1)
+         Sort Key: (sum((sum(vp.qty)))) DESC
+         Sort Method: quicksort  Memory: 26kB
+         ->  HashAggregate (actual time=81.669..81.680 rows=20 loops=1)
+               Group Key: mp.name
+               Batches: 1  Memory Usage: 48kB
+               ->  HashAggregate (actual time=81.415..81.621 rows=180 loops=1)
+                     Group Key: v.visit_date, vp.procedure_id, mp.code, mp.name
+                     Batches: 1  Memory Usage: 913kB
+                     ->  Hash Join (actual time=10.479..67.102 rows=22500 loops=1)
+                           Hash Cond: (vp.procedure_id = mp.id)
+                           ->  Hash Join (actual time=10.452..62.606 rows=22500 loops=1)
+                                 Hash Cond: (vp.visit_id = v.id)
+                                 ->  Seq Scan on visit_procedure vp (actual time=0.008..24.372 rows=150000 loops=1)
+                                       Filter: ((status)::text = 'ACTIVE'::text)
+                                 ->  Hash (actual time=10.373..10.374 rows=15000 loops=1)
+                                       Buckets: 16384  Batches: 1  Memory Usage: 832kB
+                                       ->  Bitmap Heap Scan on visit v (actual time=0.673..5.881 rows=15000 loops=1)
+                                             Recheck Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+                                             Filter: ((status)::text <> 'CANCELLED'::text)
+                                             Heap Blocks: exact=321
+                                             ->  Bitmap Index Scan on visit_doctor_date_idx (actual time=0.630..0.630 rows=15000 loops=1)
+                                                   Index Cond: ((visit_date >= (CURRENT_DATE - 29)) AND (visit_date <= CURRENT_DATE))
+                           ->  Hash (actual time=0.017..0.017 rows=20 loops=1)
+                                 Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                                 ->  Seq Scan on medical_procedure mp (actual time=0.005..0.007 rows=20 loops=1)
+ Planning Time: 0.526 ms
+ Execution Time: 82.606 ms
+(29 rows)
+
+--- Q5 medicine usage, 30 days
+                                                                                    QUERY PLAN                                                                                     
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=18.423..18.429 rows=10 loops=1)
+   ->  Sort (actual time=18.422..18.426 rows=10 loops=1)
+         Sort Key: (sum((sum(pi.qty)))) DESC
+         Sort Method: top-N heapsort  Memory: 25kB
+         ->  HashAggregate (actual time=18.392..18.403 rows=30 loops=1)
+               Group Key: m.name
+               Batches: 1  Memory Usage: 40kB
+               ->  HashAggregate (actual time=18.261..18.350 rows=180 loops=1)
+                     Group Key: rx.dispensed_date, pi.medicine_id, m.code, m.name, m.unit
+                     Batches: 1  Memory Usage: 433kB
+                     ->  Hash Join (actual time=3.165..15.189 rows=7500 loops=1)
+                           Hash Cond: (pi.medicine_id = m.id)
+                           ->  Hash Join (actual time=3.124..13.861 rows=7500 loops=1)
+                                 Hash Cond: (pi.prescription_id = rx.id)
+                                 ->  Seq Scan on prescription_item pi (actual time=0.003..3.039 rows=50000 loops=1)
+                                 ->  Hash (actual time=3.062..3.063 rows=7500 loops=1)
+                                       Buckets: 8192  Batches: 1  Memory Usage: 416kB
+                                       ->  Bitmap Heap Scan on prescription rx (actual time=0.290..1.741 rows=7500 loops=1)
+                                             Recheck Cond: ((dispensed_date >= (CURRENT_DATE - 29)) AND (dispensed_date <= CURRENT_DATE) AND ((status)::text = 'DISPENSED'::text))
+                                             Heap Blocks: exact=245
+                                             ->  Bitmap Index Scan on prescription_dispensed_date_idx (actual time=0.212..0.213 rows=7500 loops=1)
+                                                   Index Cond: ((dispensed_date >= (CURRENT_DATE - 29)) AND (dispensed_date <= CURRENT_DATE))
+                           ->  Hash (actual time=0.026..0.026 rows=30 loops=1)
+                                 Buckets: 1024  Batches: 1  Memory Usage: 11kB
+                                 ->  Seq Scan on medicine m (actual time=0.006..0.012 rows=30 loops=1)
+ Planning Time: 0.597 ms
+ Execution Time: 18.952 ms
+(27 rows)
+
+--- Q6 queue board: one polyclinic, one day
+                                                QUERY PLAN                                                
+----------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.808..0.820 rows=50 loops=1)
+   InitPlan 1 (returns $1)
+     ->  Aggregate (actual time=0.014..0.015 rows=1 loops=1)
+           ->  Seq Scan on polyclinic (actual time=0.007..0.008 rows=4 loops=1)
+   ->  Sort (actual time=0.807..0.811 rows=50 loops=1)
+         Sort Key: visit.queue_no
+         Sort Method: top-N heapsort  Memory: 28kB
+         ->  Bitmap Heap Scan on visit (actual time=0.498..0.769 rows=125 loops=1)
+               Recheck Cond: (visit_date = (CURRENT_DATE - 3))
+               Filter: (polyclinic_id = $1)
+               Rows Removed by Filter: 375
+               Heap Blocks: exact=125
+               ->  Bitmap Index Scan on visit_doctor_date_idx (actual time=0.437..0.437 rows=500 loops=1)
+                     Index Cond: (visit_date = (CURRENT_DATE - 3))
+ Planning Time: 0.345 ms
+ Execution Time: 0.952 ms
+(16 rows)
+
+--- Q7 patient search by name (trigram)
+                              QUERY PLAN                              
+----------------------------------------------------------------------
+ Limit (actual time=8.897..18.928 rows=1 loops=1)
+   ->  Seq Scan on patient (actual time=8.896..18.924 rows=1 loops=1)
+         Filter: ((name)::text ~~* '%Pasien 12345%'::text)
+         Rows Removed by Filter: 25029
+ Planning Time: 0.230 ms
+ Execution Time: 18.952 ms
+(6 rows)
+
+--- Q8 visit history of one patient
+                              QUERY PLAN                               
+-----------------------------------------------------------------------
+ Sort (actual time=8.434..8.436 rows=4 loops=1)
+   Sort Key: visit.visit_date DESC
+   Sort Method: quicksort  Memory: 25kB
+   InitPlan 1 (returns $0)
+     ->  Seq Scan on patient (actual time=0.069..1.905 rows=1 loops=1)
+           Filter: ((name)::text = 'PERF Pasien 777'::text)
+           Rows Removed by Filter: 25029
+   ->  Seq Scan on visit (actual time=2.108..8.428 rows=4 loops=1)
+         Filter: (patient_id = $0)
+         Rows Removed by Filter: 99996
+ Planning Time: 0.121 ms
+ Execution Time: 8.454 ms
+(12 rows)
+
+--- Q9 visits by status and date (worklist)
+                                                QUERY PLAN                                                
+----------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.720..0.731 rows=50 loops=1)
+   ->  Sort (actual time=0.718..0.723 rows=50 loops=1)
+         Sort Key: queue_no
+         Sort Method: top-N heapsort  Memory: 26kB
+         ->  Bitmap Heap Scan on visit (actual time=0.356..0.631 rows=500 loops=1)
+               Recheck Cond: (visit_date = (CURRENT_DATE - 5))
+               Filter: ((status)::text = 'DONE'::text)
+               Heap Blocks: exact=125
+               ->  Bitmap Index Scan on visit_doctor_date_idx (actual time=0.338..0.338 rows=500 loops=1)
+                     Index Cond: (visit_date = (CURRENT_DATE - 5))
+ Planning Time: 0.162 ms
+ Execution Time: 0.794 ms
+(12 rows)
+
+--- Q10 payments of an invoice
+                           QUERY PLAN                           
+----------------------------------------------------------------
+ Seq Scan on payment (actual time=6.379..10.023 rows=1 loops=1)
+   Filter: (invoice_id = 54321)
+   Rows Removed by Filter: 94999
+ Planning Time: 0.086 ms
+ Execution Time: 10.041 ms
+(5 rows)
+
+ROLLBACK

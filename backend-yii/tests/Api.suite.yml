@@ -1,0 +1,10 @@
+# Black-box REST tests against the running stack (nginx -> Yii). Runs inside the Yii container,
+# where the compose service name resolves. Override with: codecept run Api --override "modules: config: REST: url: http://host:8080/api/v1"
+actor: ApiTester
+modules:
+  enabled:
+    - REST:
+        url: http://yii-web/api/v1
+        depends: PhpBrowser
+    - Asserts
+    - Tests\Support\Helper\Http

@@ -1,0 +1,18 @@
+# Codeception 5. Run inside the Yii container (dependencies live in /opt/vendor):
+#   docker compose exec yii composer install --no-interaction        # once: adds the dev tools
+#   docker compose exec yii /opt/vendor/bin/codecept run              # Unit + Api
+namespace: Tests
+support_namespace: Support
+paths:
+  tests: tests
+  output: tests/_output
+  data: tests/Support/Data
+  support: tests/Support
+  envs: tests/_envs
+actor_suffix: Tester
+settings:
+  shutdown_on_fail: false
+  colors: false
+extensions:
+  enabled:
+    - Codeception\Extension\RunFailed

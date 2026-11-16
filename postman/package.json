@@ -1,0 +1,13 @@
+{
+  "name": "simrs-postman",
+  "private": true,
+  "description": "Postman collection (generated) + newman runner for the SIMRS API",
+  "scripts": {
+    "build": "node build-collection.js",
+    "test": "node build-collection.js && newman run SIMRS.postman_collection.json -e SIMRS.postman_environment.json -r cli,htmlextra --reporter-htmlextra-export report/newman-report.html --reporter-htmlextra-title \"SIMRS Rawat Jalan - API tests\" --delay-request 50"
+  },
+  "devDependencies": {
+    "newman": "^6.2.1",
+    "newman-reporter-htmlextra": "^1.23.1"
+  }
+}

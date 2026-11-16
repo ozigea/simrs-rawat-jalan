@@ -14,3 +14,7 @@ runtime/
 .vscode/
 .DS_Store
 *.log
+
+# codeception output / generated actions
+backend-yii/tests/_output/
+backend-yii/tests/Support/_generated/
