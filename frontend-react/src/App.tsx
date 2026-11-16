@@ -5,6 +5,7 @@ import { useAuth } from './auth/AuthContext';
 import AppLayout from './components/AppLayout';
 import MasterCrudPage from './components/MasterCrudPage';
 import { masterConfigs } from './features/master/configs';
+import DashboardPage from './features/dashboard/DashboardPage';
 import BillingPage from './features/billing/BillingPage';
 import InvoicePage from './features/billing/InvoicePage';
 import PaymentHistoryPage from './features/billing/PaymentHistoryPage';
@@ -47,6 +48,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<RequireAuth />}>
         <Route index element={<StatusPage />} />
+        <Route path="dashboard" element={<Guard perm="dashboard.revenue"><DashboardPage /></Guard>} />
         <Route path="registration" element={<Guard perm="visit.create"><RegistrationPage /></Guard>} />
         <Route path="queue" element={<Guard perm="queue.read"><QueuePage /></Guard>} />
         <Route path="billing" element={<Guard perm="billing.read"><BillingPage /></Guard>} />

@@ -53,17 +53,20 @@ for (const client of [yiiApi, nodeApi]) {
 }
 
 // A 401 on any call except login means the session is gone: drop the token and go to /login.
-yiiApi.interceptors.response.use(
-  (r) => r,
-  (error: AxiosError<ApiEnvelope<unknown>>) => {
-    const isLogin = error.config?.url?.includes('/auth/login');
-    if (error.response?.status === 401 && !isLogin) {
-      tokenStore.clear();
-      if (window.location.pathname !== '/login') window.location.assign('/login');
-    }
-    return Promise.reject(error);
-  },
-);
+// Applies to Node too (same JWT): an expired token must not leave the dashboard silently broken.
+for (const client of [yiiApi, nodeApi]) {
+  client.interceptors.response.use(
+    (r) => r,
+    (error: AxiosError<ApiEnvelope<unknown>>) => {
+      const isLogin = error.config?.url?.includes('/auth/login');
+      if (error.response?.status === 401 && !isLogin) {
+        tokenStore.clear();
+        if (window.location.pathname !== '/login') window.location.assign('/login');
+      }
+      return Promise.reject(error);
+    },
+  );
+}
 
 /** Normalises any thrown value into the API error shape (network errors included). */
 export function toApiError(e: unknown): ApiError {

@@ -30,6 +30,7 @@ module.exports = {
     delayMs: Number(env('MOCK_LIS_DELAY_MS', '2000')),
     callbackUrl: env('MOCK_LIS_CALLBACK_URL', `http://127.0.0.1:${port}`),
   },
+  dashboard: { cacheTtlMs: Number(env('DASHBOARD_CACHE_TTL_SECONDS', '60')) * 1000 },
   worker: {
     enabled: bool('WORKER_ENABLED', 'true'),
     intervalMs: Number(env('WORKER_INTERVAL_MS', '1000')),

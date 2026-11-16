@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Button, Layout, Menu, Space, Tag, Typography } from 'antd';
-import { DashboardOutlined, DatabaseOutlined, LogoutOutlined, MedicineBoxOutlined } from '@ant-design/icons';
+import { DashboardOutlined, DatabaseOutlined, HomeOutlined, LogoutOutlined, MedicineBoxOutlined } from '@ant-design/icons';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { masterConfigs } from '../features/master/configs';
@@ -26,7 +26,8 @@ export default function AppLayout() {
       { perm: 'billing.read', key: '/payments', label: 'Riwayat Pembayaran' },
     ].filter((i) => can(i.perm)).map(({ key, label }) => ({ key, label }));
     return [
-      { key: '/', icon: <DashboardOutlined />, label: 'Beranda' },
+      { key: '/', icon: <HomeOutlined />, label: 'Beranda' },
+      ...(can('dashboard.revenue') ? [{ key: '/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' }] : []),
       ...(service.length ? [{ key: 'service', icon: <MedicineBoxOutlined />, label: 'Pelayanan', children: service }] : []),
       ...(master.length ? [{ key: 'master', icon: <DatabaseOutlined />, label: 'Master Data', children: master }] : []),
     ];

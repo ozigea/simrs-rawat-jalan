@@ -1,13 +1,16 @@
 openapi: 3.0.3
 info:
   title: SIMRS Rawat Jalan - Node Service API
-  version: 0.2.0
+  version: 0.3.0
   description: |
-    Integration API (external laboratory system) and, later, the dashboard API.
+    Dashboard API (read-only aggregates) and integration API (external laboratory system).
     All responses use one envelope: `{success, data, meta, error, request_id}`.
 
     Authentication:
     * **Bearer JWT (RS256)** - issued by the Yii core at login; this service only verifies it. Admin endpoints.
+    * Dashboard: figures come from the `v_dashboard_*` SQL views (single definition, owned by the Yii migrations);
+      this service only SELECTs them. Each (endpoint, period, params) combination is cached in memory for 60 s
+      (`X-Cache: HIT|MISS`). Without `from`/`to` the period is the last 30 days; max 366 days.
     * **X-API-Key** - for the external laboratory system (`/integration/lab-*`).
 
     Reliability (scenario D-5): orders reach the lab through a transactional outbox with retry/backoff;
@@ -16,6 +19,7 @@ servers:
   - url: /api/v1
 tags:
   - { name: Health }
+  - { name: Dashboard }
   - { name: External lab (API key) }
   - { name: Integration monitor (admin) }
   - { name: Mock LIS }
@@ -27,6 +31,93 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Ok' }
         '503': { $ref: '#/components/responses/Unavailable' }
+  /dashboard/summary:
+    get:
+      tags: [Dashboard]
+      summary: Totals for the period
+      description: "visits, cancelled visits, procedures (qty, amount), revenue, dispensed medicine qty, invoices, outstanding balance. Roles: admin."
+      security: [{ Bearer: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/From' }
+        - { $ref: '#/components/parameters/To' }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
+  /dashboard/visits-by-polyclinic:
+    get:
+      tags: [Dashboard]
+      summary: Visits per polyclinic
+      description: "Cancelled visits are counted separately. Roles: admin."
+      security: [{ Bearer: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/From' }
+        - { $ref: '#/components/parameters/To' }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
+  /dashboard/procedures:
+    get:
+      tags: [Dashboard]
+      summary: Procedure recap (top N by quantity)
+      description: "ACTIVE procedures of non-cancelled visits. Roles: admin."
+      security: [{ Bearer: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/From' }
+        - { $ref: '#/components/parameters/To' }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 10 } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
+  /dashboard/revenue:
+    get:
+      tags: [Dashboard]
+      summary: Revenue trend (group=day, zero-filled) or per payment method (group=method)
+      description: "Only SUCCESS payments, by payment date. Roles: admin, kasir."
+      security: [{ Bearer: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/From' }
+        - { $ref: '#/components/parameters/To' }
+        - { name: group, in: query, schema: { type: string, enum: [day, method], default: day } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
+  /dashboard/medicine-usage:
+    get:
+      tags: [Dashboard]
+      summary: Medicine usage (top N by quantity)
+      description: "Items of DISPENSED prescriptions. Roles: admin."
+      security: [{ Bearer: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/From' }
+        - { $ref: '#/components/parameters/To' }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 10 } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
+  /dashboard/payment-status:
+    get:
+      tags: [Dashboard]
+      summary: Invoices per status (UNPAID, PARTIAL, PAID, OVERPAID)
+      description: "By visit date. Roles: admin, kasir."
+      security: [{ Bearer: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/From' }
+        - { $ref: '#/components/parameters/To' }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
   /integration/lab-orders:
     get:
       tags: [External lab (API key)]
@@ -163,6 +254,8 @@ components:
     ApiKey: { type: apiKey, in: header, name: X-API-Key }
   parameters:
     Id: { name: id, in: path, required: true, schema: { type: integer } }
+    From: { name: from, in: query, description: 'Period start (YYYY-MM-DD). Default: 29 days before `to`.', schema: { type: string, format: date } }
+    To: { name: to, in: query, description: 'Period end, inclusive (YYYY-MM-DD). Default: today. Max range 366 days.', schema: { type: string, format: date } }
   responses:
     Ok: { description: Success, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
     Unauthorized: { description: Missing, invalid or expired credentials, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
