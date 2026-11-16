@@ -8,7 +8,8 @@
         "ext-json": "*",
         "ext-pdo": "*",
         "yiisoft/yii2": "^2.0.50",
-        "firebase/php-jwt": "^7.0"
+        "firebase/php-jwt": "^7.0",
+        "mpdf/mpdf": "^8.2"
     },
     "config": {
         "process-timeout": 1800,

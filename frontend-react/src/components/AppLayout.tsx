@@ -22,6 +22,8 @@ export default function AppLayout() {
       { perm: 'visit.list', key: '/visits', label: 'Daftar Kunjungan' },
       { perm: 'pharmacy.worklist', key: '/pharmacy', label: 'Farmasi' },
       { perm: 'lab.worklist', key: '/lab', label: 'Laboratorium' },
+      { perm: 'billing.read', key: '/billing', label: 'Kasir' },
+      { perm: 'billing.read', key: '/payments', label: 'Riwayat Pembayaran' },
     ].filter((i) => can(i.perm)).map(({ key, label }) => ({ key, label }));
     return [
       { key: '/', icon: <DashboardOutlined />, label: 'Beranda' },
@@ -38,7 +40,7 @@ export default function AppLayout() {
           theme="dark"
           mode="inline"
           items={items}
-          selectedKeys={[location.pathname.startsWith('/visits/') ? '/visits' : location.pathname]}
+          selectedKeys={[location.pathname.startsWith('/visits/') ? '/visits' : location.pathname.startsWith('/billing') ? '/billing' : location.pathname]}
           defaultOpenKeys={['service', 'master']}
           onClick={(e) => navigate(e.key)}
         />

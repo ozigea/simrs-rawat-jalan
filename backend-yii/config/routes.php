@@ -41,6 +41,15 @@ return [
     'PUT api/v1/lab-orders/<id:\d+>/results' => 'api/v1/lab-order/results',
     'POST api/v1/internal/lab-results' => 'api/v1/internal/lab-results',
 
+    // Billing and payments
+    'POST api/v1/visits/<id:\d+>/invoice' => 'api/v1/invoice/generate',
+    'GET api/v1/invoices' => 'api/v1/invoice/index',
+    'GET api/v1/invoices/<id:\d+>' => 'api/v1/invoice/view',
+    'GET api/v1/invoices/<id:\d+>/pdf' => 'api/v1/invoice/pdf',
+    'POST api/v1/invoices/<id:\d+>/payments' => 'api/v1/payment/create',
+    'GET api/v1/payments' => 'api/v1/payment/index',
+    'GET api/v1/payments/<id:\d+>/receipt' => 'api/v1/payment/receipt',
+
     $rest(['api/v1/staff' => 'api/v1/staff']),
     $rest(['api/v1/polyclinics' => 'api/v1/polyclinic']),
     $rest(['api/v1/procedures' => 'api/v1/procedure']),

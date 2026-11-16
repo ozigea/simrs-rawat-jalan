@@ -41,6 +41,7 @@ class PharmacyService
         }
 
         $uid = Yii::$app->user->id;
+        (new InvoiceService())->assertNotSettled($visitId, 'resep');
         return Yii::$app->db->transaction(function () use ($visitId, $items, $body, $uid) {
             $db = Yii::$app->db;
             $visit = VisitGuard::lock($visitId, ['IN_EXAM', 'EXAMINED'], 'Resep');
@@ -205,6 +206,8 @@ class PharmacyService
                 ])->execute();
             }
             AuditService::log('prescription', $id, 'UPDATE', ['status' => 'NEW'], ['status' => 'DISPENSED']);
+            // New MEDICINE charges raise the invoice total (if one exists); DONE conditions are re-evaluated.
+            (new InvoiceService())->recalculateIfExists((int) $rx['visit_id'], 'Obat diserahkan ' . $rx['prescription_no']);
         });
         return $this->detail($id);
     }
@@ -225,6 +228,7 @@ class PharmacyService
                 throw new ApiException(409, 'INVALID_STATE', "Resep berstatus $status dan tidak dapat dibatalkan");
             }
             AuditService::log('prescription', $id, 'VOID', ['status' => 'NEW'], ['status' => 'CANCELLED'], $reason);
+            (new InvoiceService())->syncVisit((int) $db->createCommand('SELECT visit_id FROM prescription WHERE id = :id', [':id' => $id])->queryScalar());
         });
         return $this->detail($id);
     }

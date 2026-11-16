@@ -5,6 +5,9 @@ import { useAuth } from './auth/AuthContext';
 import AppLayout from './components/AppLayout';
 import MasterCrudPage from './components/MasterCrudPage';
 import { masterConfigs } from './features/master/configs';
+import BillingPage from './features/billing/BillingPage';
+import InvoicePage from './features/billing/InvoicePage';
+import PaymentHistoryPage from './features/billing/PaymentHistoryPage';
 import ExamPage from './features/visits/ExamPage';
 import LabWorklistPage from './features/visits/LabWorklistPage';
 import PatientHistoryPage from './features/visits/PatientHistoryPage';
@@ -46,6 +49,9 @@ export default function App() {
         <Route index element={<StatusPage />} />
         <Route path="registration" element={<Guard perm="visit.create"><RegistrationPage /></Guard>} />
         <Route path="queue" element={<Guard perm="queue.read"><QueuePage /></Guard>} />
+        <Route path="billing" element={<Guard perm="billing.read"><BillingPage /></Guard>} />
+        <Route path="billing/invoices/:id" element={<Guard perm="billing.read"><InvoicePage /></Guard>} />
+        <Route path="payments" element={<Guard perm="billing.read"><PaymentHistoryPage /></Guard>} />
         <Route path="pharmacy" element={<Guard perm="pharmacy.worklist"><PharmacyPage /></Guard>} />
         <Route path="lab" element={<Guard perm="lab.worklist"><LabWorklistPage /></Guard>} />
         <Route path="visits" element={<Guard perm="visit.list"><VisitListPage /></Guard>} />

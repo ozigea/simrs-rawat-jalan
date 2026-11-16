@@ -1,0 +1,7 @@
+{
+  "name": "simrs-ui-tests",
+  "private": true,
+  "description": "Headless-Chrome UI checks; screenshots go to docs/screenshots. Needs Google Chrome (CHROME_PATH) and the stack running.",
+  "scripts": { "f5": "node f5-billing.js" },
+  "dependencies": { "puppeteer-core": "^24.0.0" }
+}

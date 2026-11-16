@@ -25,7 +25,7 @@ class VisitController extends ApiController
         $req = Yii::$app->request;
         $page = max(1, (int) $req->get('page', 1));
         $perPage = min(100, max(1, (int) $req->get('per_page', 20)));
-        $filters = array_intersect_key($req->get(), array_flip(['date', 'date_from', 'date_to', 'polyclinic_id', 'doctor_id', 'patient_id', 'status', 'q']));
+        $filters = array_intersect_key($req->get(), array_flip(['date', 'date_from', 'date_to', 'polyclinic_id', 'doctor_id', 'patient_id', 'status', 'q', 'no_invoice']));
         foreach (['date', 'date_from', 'date_to'] as $d) {
             if (!empty($filters[$d]) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $filters[$d])) {
                 throw new ApiException(422, 'VALIDATION_FAILED', 'Data tidak valid', [['field' => $d, 'message' => 'Format tanggal YYYY-MM-DD']]);
@@ -39,6 +39,7 @@ class VisitController extends ApiController
     {
         $visit = $this->visits->find((int) $id);
         $this->authorizeVisit('visit.view', $visit);
+        $visit['invoice'] = (new \app\services\InvoiceService())->summaryOfVisit((int) $id);
         // Clinical data only for roles that may read it (admin, the visit's own doctor).
         if (Yii::$app->user->can('exam.read', ['visit' => $visit])) {
             $visit['clinical'] = (new ExaminationService())->clinical((int) $id);

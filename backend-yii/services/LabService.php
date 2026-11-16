@@ -35,6 +35,7 @@ class LabService
         }
 
         $uid = Yii::$app->user->id;
+        (new InvoiceService())->assertNotSettled($visitId, 'permintaan lab');
         $orderId = Yii::$app->db->transaction(function () use ($visitId, $testIds, $body, $uid) {
             $db = Yii::$app->db;
             $visit = VisitGuard::lock($visitId, ['IN_EXAM', 'EXAMINED'], 'Permintaan lab');
@@ -82,6 +83,7 @@ class LabService
                 ]),
             ])->execute();
             AuditService::log('lab_order', $orderId, 'INSERT', null, ['visit_id' => $visitId, 'tests' => count($testIds)]);
+            (new InvoiceService())->recalculateIfExists($visitId, 'Permintaan lab ' . $order['order_no']);
             return $orderId;
         });
         return $this->detail($orderId);
@@ -219,6 +221,7 @@ class LabService
             $total = (int) $db->createCommand('SELECT count(*) FROM lab_order_item WHERE lab_order_id = :o', [':o' => $orderId])->queryScalar();
             $status = $pending === 0 ? 'RESULTED' : ($pending < $total ? 'IN_PROGRESS' : 'ORDERED');
             $db->createCommand('UPDATE lab_order SET status = :s, updated_at = now() WHERE id = :id AND status <> :s', [':s' => $status, ':id' => $orderId])->execute();
+            (new InvoiceService())->syncVisit((int) $db->createCommand('SELECT visit_id FROM lab_order WHERE id = :id', [':id' => $orderId])->queryScalar());
         });
         return $this->detail($orderId);
     }

@@ -93,4 +93,19 @@ async function waitFor(fn, timeoutMs, label) {
   }
 }
 
-module.exports = { call, callNode, login, today, makePatients, makeVisitsInExam, makeMedicine, waitFor, sleep, check, done };
+// A finished visit with an invoice (registration 20.000 + procedures TND-003 75.000 + TND-001 25.000 = 120.000).
+async function makeInvoice(tokens, tag) {
+  const { doctor, cashier } = tokens;
+  const [visitId] = await makeVisitsInExam(1, tag, tokens);
+  const procs = (await call('GET', '/procedures?per_page=100', { token: tokens.admin })).body.data;
+  const byCode = (c) => procs.find((p) => p.code === c).id;
+  await call('PUT', `/visits/${visitId}/examination`, { token: doctor, body: { chief_complaint: 'uji pembayaran' } });
+  await call('POST', `/visits/${visitId}/diagnoses`, { token: doctor, body: { icd10_code: 'J06.9', type: 'PRIMARY' } });
+  await call('POST', `/visits/${visitId}/procedures`, { token: doctor, body: { items: [{ procedure_id: byCode('TND-003') }, { procedure_id: byCode('TND-001') }] } });
+  await call('POST', `/visits/${visitId}/finish`, { token: doctor });
+  const inv = await call('POST', `/visits/${visitId}/invoice`, { token: cashier });
+  if (inv.status !== 201) throw new Error('invoice failed ' + JSON.stringify(inv.body));
+  return { visitId, invoiceId: inv.body.data.id, total: Number(inv.body.data.total_amount) };
+}
+
+module.exports = { makeInvoice, call, callNode, login, today, makePatients, makeVisitsInExam, makeMedicine, waitFor, sleep, check, done };

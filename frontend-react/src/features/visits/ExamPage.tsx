@@ -27,7 +27,7 @@ function applyFieldErrors(form: ReturnType<typeof Form.useForm>[0], e: unknown):
 }
 
 // ------------------------------------------------------------------ examination (R-13)
-function ExaminationTab({ visit, canWrite, reload }: { visit: Row; canWrite: boolean; reload: Reload }) {
+function ExaminationTab({ visit, canWrite, reload }: { visit: Row; canWrite: boolean; reload: Reload }) {  // canWrite already excludes settled invoices
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
   const exam: Row | null = visit.clinical?.examination ?? null;
@@ -181,12 +181,13 @@ function DiagnosisTab({ visit, canWrite, reload }: { visit: Row; canWrite: boole
 }
 
 // ------------------------------------------------------------------ procedures (R-16)
-function ProcedureTab({ visit, canWrite, reload }: { visit: Row; canWrite: boolean; reload: Reload }) {
+function ProcedureTab({ visit, canWrite, adminOverride, reload }: { visit: Row; canWrite: boolean; adminOverride: boolean; reload: Reload }) {
   const [form] = Form.useForm();
   const [adding, setAdding] = useState(false);
   const [voiding, setVoiding] = useState<Row | null>(null);
   const lines: Row[] = visit.clinical?.procedures ?? [];
-  const editable = canWrite && ['IN_EXAM', 'EXAMINED'].includes(visit.status);
+  // Doctors: IN_EXAM/EXAMINED. Admin correction after PAID (D-4/O-6): any status incl. DONE, reason mandatory.
+  const editable = adminOverride || (canWrite && ['IN_EXAM', 'EXAMINED'].includes(visit.status));
   const total = useMemo(() => lines.filter((l) => l.status === 'ACTIVE').reduce((s, l) => s + Number(l.amount), 0), [lines]);
 
   const { data: procedures } = useQuery({
@@ -196,10 +197,10 @@ function ProcedureTab({ visit, canWrite, reload }: { visit: Row; canWrite: boole
   });
   const options = (procedures ?? []).map((p) => ({ value: p.id as number, label: `${p.name} - ${formatMoney(p.tariff)}` }));
 
-  const add = async (values: { items: { procedure_id: number; qty: number }[] }) => {
+  const add = async (values: { items: { procedure_id: number; qty: number }[]; reason?: string }) => {
     setAdding(true);
     try {
-      await yiiApi.post(`/visits/${visit.id}/procedures`, { items: values.items.map((i) => ({ procedure_id: i.procedure_id, qty: i.qty ?? 1 })) });
+      await yiiApi.post(`/visits/${visit.id}/procedures`, { items: values.items.map((i) => ({ procedure_id: i.procedure_id, qty: i.qty ?? 1 })), reason: adminOverride ? values.reason : undefined });
       form.resetFields();
       message.success('Tindakan ditambahkan dan masuk tagihan');
       await reload();
@@ -225,6 +226,12 @@ function ProcedureTab({ visit, canWrite, reload }: { visit: Row; canWrite: boole
     <Space direction="vertical" style={{ width: '100%' }} size="middle">
       {editable && (
         <Form form={form} onFinish={add} initialValues={{ items: [{ qty: 1 }] }}>
+          {/* outside Form.List: names inside the list render are scoped to it ("items_reason") */}
+          {adminOverride && (
+            <Form.Item name="reason" label="Alasan koreksi (wajib, tercatat di audit)" rules={[{ required: true, min: 3, message: 'Alasan koreksi wajib diisi' }]}>
+              <Input maxLength={255} style={{ maxWidth: 520 }} />
+            </Form.Item>
+          )}
           <Form.List name="items">
             {(fields, { add: addRow, remove }) => (
               <>
@@ -303,7 +310,9 @@ export default function ExamPage() {
     return <Result status={code === 'FORBIDDEN' ? '403' : '404'} title={code === 'FORBIDDEN' ? 'Anda tidak berhak mengakses kunjungan ini' : 'Kunjungan tidak ditemukan'} extra={<Button onClick={() => navigate(-1)}>Kembali</Button>} />;
   }
 
-  const canWrite = can('exam.write');
+  const settled = visit.invoice?.status === 'PAID' && Number(visit.invoice.paid_amount) > 0;
+  const canWrite = can('exam.write') && !settled; // a paid invoice locks examination, procedures, lab and prescriptions
+  const adminOverride = settled && can('billing.adjustPaid');
   const act = async (path: 'call' | 'finish') => {
     setBusy(true);
     try {
@@ -322,8 +331,8 @@ export default function ExamPage() {
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
       <Space wrap>
         <Button onClick={() => navigate(-1)}>Kembali</Button>
-        {canWrite && visit.status === 'WAITING' && <Button type="primary" loading={busy} onClick={() => act('call')}>Panggil pasien</Button>}
-        {canWrite && visit.status === 'IN_EXAM' && (
+        {can('exam.write') && visit.status === 'WAITING' && <Button type="primary" loading={busy} onClick={() => act('call')}>Panggil pasien</Button>}
+        {can('exam.write') && visit.status === 'IN_EXAM' && (
           <Popconfirm title="Selesaikan pemeriksaan?" description="Pemeriksaan dan diagnosis utama harus sudah terisi." okText="Selesai" cancelText="Batal" onConfirm={() => act('finish')}>
             <Button type="primary" loading={busy}>Selesai periksa</Button>
           </Popconfirm>
@@ -341,6 +350,16 @@ export default function ExamPage() {
         </Descriptions>
       </Card>
 
+      {settled && (
+        <Alert
+          type="info"
+          showIcon
+          message="Tagihan sudah lunas - data medis terkunci"
+          description={adminOverride
+            ? 'Sebagai Administrator Anda dapat menambah atau membatalkan tindakan dengan alasan; tagihan dihitung ulang dan tercatat di audit. Diagnosis tetap dapat diubah dokter.'
+            : 'Hanya diagnosis yang masih dapat diubah. Koreksi tindakan dilakukan oleh Administrator.'}
+        />
+      )}
       {!visit.clinical ? (
         <Alert type="info" showIcon message="Data medis tidak tersedia untuk peran Anda." />
       ) : (
@@ -348,8 +367,8 @@ export default function ExamPage() {
           <Tabs
             items={[
               { key: 'exam', label: 'Pemeriksaan', children: <ExaminationTab visit={visit} canWrite={canWrite} reload={reload} /> },
-              { key: 'dx', label: `Diagnosis (${visit.clinical.diagnoses.filter((d: Row) => d.status === 'ACTIVE').length})`, children: <DiagnosisTab visit={visit} canWrite={canWrite} reload={reload} /> },
-              { key: 'proc', label: `Tindakan (${visit.clinical.procedures.filter((d: Row) => d.status === 'ACTIVE').length})`, children: <ProcedureTab visit={visit} canWrite={canWrite} reload={reload} /> },
+              { key: 'dx', label: `Diagnosis (${visit.clinical.diagnoses.filter((d: Row) => d.status === 'ACTIVE').length})`, children: <DiagnosisTab visit={visit} canWrite={can('exam.write')} reload={reload} /> },
+              { key: 'proc', label: `Tindakan (${visit.clinical.procedures.filter((d: Row) => d.status === 'ACTIVE').length})`, children: <ProcedureTab visit={visit} canWrite={canWrite} adminOverride={adminOverride} reload={reload} /> },
               { key: 'rx', label: `Resep (${visit.clinical.prescriptions.length})`, children: <PrescriptionTab visit={visit} canWrite={canWrite} reload={reload} /> },
               { key: 'lab', label: `Lab (${visit.clinical.lab_orders.length})`, children: <LabTab visit={visit} canWrite={canWrite} reload={reload} /> },
               { key: 'hist', label: 'Riwayat pasien', children: <PatientHistory patientId={visit.patient_id} /> },

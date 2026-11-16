@@ -28,8 +28,12 @@ class VisitService
         $q = (new Query())->from(['v' => 'visit'])
             ->innerJoin(['pt' => 'patient'], 'pt.id = v.patient_id')
             ->innerJoin(['pol' => 'polyclinic'], 'pol.id = v.polyclinic_id')
-            ->innerJoin(['d' => 'medical_staff'], 'd.id = v.doctor_id');
+            ->innerJoin(['d' => 'medical_staff'], 'd.id = v.doctor_id')
+            ->leftJoin(['inv' => 'invoice'], 'inv.visit_id = v.id');
 
+        if (!empty($f['no_invoice'])) {
+            $q->andWhere(['inv.id' => null]);
+        }
         if (!empty($f['date'])) {
             $q->andWhere(['v.visit_date' => $f['date']]);
         }
@@ -63,7 +67,7 @@ class VisitService
         $rows = $q->select([
             'v.id', 'v.visit_no', 'v.visit_date', 'v.queue_no', 'v.status', 'v.called_at',
             'v.patient_id', 'pt.mrn', 'pt.name AS patient_name', 'v.polyclinic_id', 'pol.name AS polyclinic_name',
-            'v.doctor_id', 'd.name AS doctor_name',
+            'v.doctor_id', 'd.name AS doctor_name', 'inv.id AS invoice_id', 'inv.status AS invoice_status',
         ])->orderBy($order)->offset(($page - 1) * $perPage)->limit($perPage)->all();
         return [$rows, $total];
     }

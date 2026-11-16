@@ -50,6 +50,7 @@ class ExaminationService
         }
         $values = $form->getAttributes(ExaminationForm::FIELDS);
         $uid = Yii::$app->user->id;
+        (new InvoiceService())->assertNotSettled($visitId, 'data pemeriksaan');
 
         return Yii::$app->db->transaction(function () use ($visitId, $body, $values, $uid) {
             $db = Yii::$app->db;
@@ -159,14 +160,14 @@ class ExaminationService
      * Adds one or more procedures; each gets a charge_item with the tariff of that moment (R-16).
      * @param array<int, array{procedure_id: mixed, qty?: mixed, notes?: mixed}> $items
      */
-    public function addProcedures(int $visitId, array $items): array
+    public function addProcedures(int $visitId, array $items, bool $adminOverride = false, ?string $reason = null): array
     {
         if (!$items) {
             throw new ApiException(422, 'VALIDATION_FAILED', 'Data tidak valid', [['field' => 'items', 'message' => 'Minimal satu tindakan']]);
         }
-        return Yii::$app->db->transaction(function () use ($visitId, $items) {
+        return Yii::$app->db->transaction(function () use ($visitId, $items, $adminOverride, $reason) {
             $db = Yii::$app->db;
-            $this->lockVisit($visitId, 'procedure');
+            $this->lockVisit($visitId, 'procedure', $adminOverride);
             $uid = Yii::$app->user->id;
             $created = [];
             foreach (array_values($items) as $i => $item) {
@@ -192,25 +193,26 @@ class ExaminationService
                      VALUES (:v, 'PROCEDURE', :s, :d, :q, :p, :a, :u, :u) RETURNING *",
                     [':v' => $visitId, ':s' => $vp['id'], ':d' => $proc['name'], ':q' => $qty, ':p' => $proc['tariff'], ':a' => bcmul((string) $proc['tariff'], (string) $qty, 2), ':u' => $uid]
                 )->queryOne();
-                AuditService::log('visit_procedure', $vp['id'], 'INSERT', null, $vp);
-                AuditService::log('charge_item', $charge['id'], 'INSERT', null, $charge);
+                AuditService::log('visit_procedure', $vp['id'], 'INSERT', null, $vp, $reason);
+                AuditService::log('charge_item', $charge['id'], 'INSERT', null, $charge, $reason);
                 $created[] = $vp + ['procedure_name' => $proc['name'], 'amount' => $charge['amount']];
             }
+            (new InvoiceService())->recalculateIfExists($visitId, $reason ?? 'Tindakan ditambahkan');
             return $created;
         });
     }
 
-    /** Void a procedure and its charge item together (D-4); invoice recalculation is added with billing (F5). */
-    public function voidProcedure(int $procedureLineId, string $reason): int
+    /** Void a procedure and its charge item together, then recalculate the invoice (D-4). */
+    public function voidProcedure(int $procedureLineId, string $reason, bool $adminOverride = false): int
     {
-        return Yii::$app->db->transaction(function () use ($procedureLineId, $reason) {
+        return Yii::$app->db->transaction(function () use ($procedureLineId, $reason, $adminOverride) {
             $db = Yii::$app->db;
             $old = $db->createCommand('SELECT * FROM visit_procedure WHERE id = :id', [':id' => $procedureLineId])->queryOne();
             if (!$old) {
                 throw new ApiException(404, 'NOT_FOUND', 'Tindakan tidak ditemukan');
             }
             $visitId = (int) $old['visit_id'];
-            $this->lockVisit($visitId, 'procedure');
+            $this->lockVisit($visitId, 'procedure', $adminOverride);
             if ($old['status'] === 'VOID') {
                 throw new ApiException(409, 'ALREADY_VOID', 'Tindakan sudah dibatalkan');
             }
@@ -229,6 +231,7 @@ class ExaminationService
             foreach ($charges as $c) {
                 AuditService::log('charge_item', $c['id'], 'VOID', null, $c, $reason);
             }
+            (new InvoiceService())->recalculateIfExists($visitId, "Tindakan dibatalkan: $reason");
             return $visitId;
         });
     }
@@ -241,13 +244,14 @@ class ExaminationService
     }
 
     /** Locks the visit row (FOR SHARE) and checks that this kind of change is still allowed. */
-    private function lockVisit(int $visitId, string $kind): void
+    private function lockVisit(int $visitId, string $kind, bool $adminOverride = false): void
     {
         $status = Yii::$app->db->createCommand('SELECT status FROM visit WHERE id = :id FOR SHARE', [':id' => $visitId])->queryScalar();
         if ($status === false) {
             throw new ApiException(404, 'NOT_FOUND', 'Kunjungan tidak ditemukan');
         }
-        if (!in_array($status, self::EDITABLE[$kind], true)) {
+        $allowed = $adminOverride ? array_merge(self::EDITABLE[$kind], ['DONE']) : self::EDITABLE[$kind];
+        if (!in_array($status, $allowed, true)) {
             $hint = $status === 'WAITING' ? ' Panggil pasien terlebih dahulu.' : '';
             throw new ApiException(409, 'INVALID_STATE', "Kunjungan berstatus $status; data ini tidak dapat diubah.$hint");
         }

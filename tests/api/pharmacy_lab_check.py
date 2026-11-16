@@ -22,7 +22,17 @@ def check(name, cond, extra=''):
     print(('PASS ' if cond else 'FAIL ') + name + ('' if cond else ' ' + str(extra)[:400]))
     if not cond: fails += 1
 
+NODE = 'http://localhost:3001/api/v1'
+def mock_lis(enabled, admin_token):
+    # The integration worker + mock LIS would deliver results by themselves within seconds and race with the
+    # assertions about results below; switch the simulated external lab off for this run.
+    req = urllib.request.Request(NODE + '/mock-lis/state', method='PUT', data=json.dumps({'enabled': enabled}).encode(),
+                                 headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + admin_token})
+    try: urllib.request.urlopen(req).read()
+    except Exception as e: print('note: could not toggle mock LIS (' + str(e) + ')')
+
 A, P, D1, D2, K, F, L = (login(u) for u in ['admin', 'pendaftaran', 'dokter1', 'dokter2', 'kasir', 'farmasi', 'lab'])
+mock_lis(False, A)
 today = datetime.date.today().isoformat()
 doc1 = call('GET', '/auth/me', D1)[1]['data']['staff_id']
 sch = [x for x in call('GET', f'/schedules/available?date={today}', P)[1]['data'] if x['doctor_id'] == doc1][0]
@@ -108,8 +118,9 @@ s, d = call('POST', f'/visits/{v1}/lab-orders', D1, {'items': [{'lab_test_id': t
 lo = d['data'].get('id'); items = d['data'].get('items', [])
 check('lab order created: ORDERED, 2 items with tariff snapshot', s == 201 and d['data']['status'] == 'ORDERED' and len(items) == 2 and items[0]['tariff'] == tests[0]['tariff'], (s, d))
 check('LAB charge items created at request time', sql(f"select count(*) from charge_item where visit_id={v1} and source_type='LAB' and status='ACTIVE'") == '2')
-check('outbox event written in the same transaction (PENDING, payload has patient + tests)',
-      sql(f"select status || '|' || (payload->>'order_no') || '|' || jsonb_array_length(payload->'tests') from integration_outbox where aggregate_type='lab_order' and aggregate_id={lo}") == f"PENDING|{d['data']['order_no']}|2", sql(f"select * from integration_outbox where aggregate_id={lo}"))
+# The Node worker may already have delivered it by the time we look (PENDING -> SENT), so accept both.
+check('outbox event written in the same transaction (payload has patient + tests)',
+      sql(f"select (status in ('PENDING','SENT'))::text || '|' || (payload->>'order_no') || '|' || jsonb_array_length(payload->'tests') || '|' || (payload->'patient'->>'mrn' is not null)::text from integration_outbox where aggregate_type='lab_order' and aggregate_id={lo}") == f"true|{d['data']['order_no']}|2|true", sql(f"select * from integration_outbox where aggregate_id={lo}"))
 order_no = d['data']['order_no']
 
 s, d = call('GET', '/lab-orders?status=ORDERED,IN_PROGRESS', L); check('lab worklist (oldest first)', s == 200 and any(x['id'] == lo and x['item_count'] == 2 and x['resulted_count'] == 0 for x in d['data']), (s, d))
@@ -140,4 +151,5 @@ s, d = call('POST', '/internal/lab-results', None, payload, tok); check('interna
 a1 = sql("select count(*) from audit_log where table_name='lab_order_item'")
 s, d = call('POST', '/internal/lab-results', None, payload, tok); check('internal: same message again -> 200, nothing changes (idempotent)', s == 200 and sql("select count(*) from audit_log where table_name='lab_order_item'") == a1)
 
+mock_lis(True, A)
 print('\nFAILURES:', fails); sys.exit(1 if fails else 0)
