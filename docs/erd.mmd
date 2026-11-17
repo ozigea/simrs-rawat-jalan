@@ -1,0 +1,257 @@
+erDiagram
+    app_user {
+        integer id PK
+        varchar username UK
+        varchar password_hash
+        varchar full_name
+        integer staff_id FK,UK
+        boolean is_active
+        timestamptz last_login_at
+    }
+    audit_log {
+        bigint id PK
+        varchar table_name
+        varchar record_id
+        varchar action
+        jsonb old_values
+        jsonb new_values
+        text reason
+        integer user_id
+    }
+    auth_assignment {
+        varchar item_name PK,FK
+        varchar user_id PK
+    }
+    auth_item {
+        varchar name PK
+        smallint type
+        text description
+        varchar rule_name FK
+        bytea data
+    }
+    auth_item_child {
+        varchar parent PK,FK
+        varchar child PK,FK
+    }
+    auth_rule {
+        varchar name PK
+        bytea data
+    }
+    charge_item {
+        bigint id PK
+        bigint visit_id FK
+        bigint invoice_id FK
+    }
+    doctor_schedule {
+        integer id PK
+        integer doctor_id FK
+        integer polyclinic_id FK
+        smallint day_of_week
+        time_without_time_zone start_time
+        time_without_time_zone end_time
+        integer quota
+        boolean is_active
+    }
+    examination {
+        bigint id PK
+        bigint visit_id FK,UK
+    }
+    icd10 {
+        varchar code PK
+        varchar description
+        boolean is_active
+    }
+    integration_inbox {
+        bigint id PK
+        varchar source
+        varchar external_id
+        jsonb payload
+        varchar status
+        integer attempts
+        timestamptz next_attempt_at
+        text last_error
+    }
+    integration_outbox {
+        bigint id PK
+    }
+    invoice {
+        bigint id PK
+        varchar invoice_no UK
+        bigint visit_id FK,UK
+        numeric total_amount
+        numeric paid_amount
+        varchar status
+        integer version
+    }
+    lab_order {
+        bigint id PK
+        varchar order_no UK
+        bigint visit_id FK
+        integer doctor_id FK
+        varchar status
+        text notes
+    }
+    lab_order_item {
+        bigint id PK
+        bigint lab_order_id FK
+        integer lab_test_id FK
+        integer resulted_by FK
+    }
+    lab_test {
+        integer id PK
+        varchar code UK
+        varchar name
+        numeric tariff
+        varchar unit
+        varchar normal_range
+        boolean is_active
+    }
+    medical_procedure {
+        integer id PK
+        varchar code UK
+        varchar name
+        numeric tariff
+        boolean is_active
+    }
+    medical_staff {
+        integer id PK
+        varchar code UK
+        varchar name
+        varchar staff_type
+        varchar license_no UK
+        varchar specialization
+        varchar phone
+        boolean is_active
+    }
+    medicine {
+        integer id PK
+        varchar code UK
+        varchar name
+        varchar unit
+        numeric price
+        integer stock_qty
+        integer min_stock
+        boolean is_active
+    }
+    migration {
+        varchar version PK
+        integer apply_time
+    }
+    patient {
+        integer id PK
+        varchar mrn UK
+        varchar nik UK
+        varchar name
+        date birth_date
+        character gender
+        varchar phone
+        text address
+        boolean is_active
+    }
+    payment {
+        bigint id PK
+        varchar payment_no UK
+        bigint invoice_id FK
+        varchar idempotency_key UK
+        integer cashier_id FK
+    }
+    polyclinic {
+        integer id PK
+        varchar code UK
+        varchar name
+        numeric registration_fee
+        boolean is_active
+    }
+    prescription {
+        bigint id PK
+        varchar prescription_no UK
+        bigint visit_id FK
+        integer doctor_id FK
+        integer dispensed_by FK
+    }
+    prescription_item {
+        bigint id PK
+        bigint prescription_id FK
+        integer medicine_id FK
+        varchar dose
+        varchar frequency
+        integer qty
+        numeric unit_price
+        text instruction
+    }
+    queue_counter {
+        integer schedule_id PK,FK
+        date queue_date PK
+        integer last_no
+    }
+    stock_movement {
+        bigint id PK
+        integer medicine_id FK
+        integer qty_change
+        varchar movement_type
+        varchar ref_type
+        bigint ref_id
+        text reason
+        integer balance_after
+    }
+    visit {
+        bigint id PK
+        varchar visit_no UK
+        integer patient_id FK
+        integer schedule_id FK
+        integer polyclinic_id FK
+        integer doctor_id FK
+        varchar idempotency_key UK
+    }
+    visit_diagnosis {
+        bigint id PK
+        bigint visit_id FK
+        varchar icd10_code FK
+        varchar type
+        varchar status
+        text void_reason
+        text notes
+    }
+    visit_procedure {
+        bigint id PK
+        bigint visit_id FK
+        integer procedure_id FK
+        integer qty
+        numeric unit_tariff
+        varchar status
+        text void_reason
+        text notes
+    }
+    auth_rule ||--o{ auth_item : "rule_name"
+    auth_item ||--o{ auth_item_child : "parent"
+    auth_item ||--o{ auth_item_child : "child"
+    auth_item ||--o{ auth_assignment : "item_name"
+    medical_staff ||--o{ app_user : "staff_id"
+    medical_staff ||--o{ doctor_schedule : "doctor_id"
+    polyclinic ||--o{ doctor_schedule : "polyclinic_id"
+    medical_staff ||--o{ prescription : "doctor_id"
+    doctor_schedule ||--o{ queue_counter : "schedule_id"
+    app_user ||--o{ prescription : "dispensed_by"
+    patient ||--o{ visit : "patient_id"
+    doctor_schedule ||--o{ visit : "schedule_id"
+    polyclinic ||--o{ visit : "polyclinic_id"
+    medical_staff ||--o{ visit : "doctor_id"
+    visit ||--o{ examination : "visit_id"
+    visit ||--o{ visit_diagnosis : "visit_id"
+    icd10 ||--o{ visit_diagnosis : "icd10_code"
+    visit ||--o{ visit_procedure : "visit_id"
+    medical_procedure ||--o{ visit_procedure : "procedure_id"
+    visit ||--o{ prescription : "visit_id"
+    prescription ||--o{ prescription_item : "prescription_id"
+    medicine ||--o{ prescription_item : "medicine_id"
+    medicine ||--o{ stock_movement : "medicine_id"
+    visit ||--o{ lab_order : "visit_id"
+    medical_staff ||--o{ lab_order : "doctor_id"
+    lab_order ||--o{ lab_order_item : "lab_order_id"
+    lab_test ||--o{ lab_order_item : "lab_test_id"
+    app_user ||--o{ lab_order_item : "resulted_by"
+    visit ||--o{ invoice : "visit_id"
+    visit ||--o{ charge_item : "visit_id"
+    invoice ||--o{ charge_item : "invoice_id"
+    invoice ||--o{ payment : "invoice_id"
+    app_user ||--o{ payment : "cashier_id"
